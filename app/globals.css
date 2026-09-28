@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* .dark 클래스 기반 다크모드 (html 요소에 토글) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+}

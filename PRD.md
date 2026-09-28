@@ -1,0 +1,82 @@
+# DART 재무제표 분석 웹 — PRD
+
+## 목표
+
+DART Open API로 상장사 재무제표를 불러와 연도별로 정리하고, 재무비율·추이 차트·기업 간 비교를 제공한다. 모바일 우선 반응형.
+
+## 핵심 기능
+
+1. **재무제표 조회** — DART Open API로 상장사 재무제표를 불러온다.
+2. **연도별 정리** — 불러온 재무제표를 연도별로 정리해 보여준다.
+3. **재무비율** — 재무제표를 바탕으로 재무비율을 계산해 제공한다.
+4. **추이 차트** — 주요 항목과 비율의 연도별 추이를 차트로 보여준다.
+5. **기업 간 비교** — 여러 기업의 재무 데이터를 나란히 비교한다.
+
+## 비기능 요구사항
+
+- 모바일 우선 반응형 UI
+
+## 표준 계정 매핑
+
+`lib/normalize/accounts.ts`의 `ACCOUNT_MAP`과 동일하게 유지한다. 원본은 DART `fnlttSinglAcntAll` 사업보고서(11011).
+
+- 매칭 순서: 재무제표 우선순위 → 표준 계정ID → 계정명(공백 무시 완전일치)
+- 손익 항목은 IS 우선, IS가 없으면(단일 포괄손익계산서) CIS
+- 자본변동표(SCE)와 `account_detail`이 있는 세부 행은 제외
+- 금액 단위: 원. 값이 없으면 `null`
+
+| 키 | 계정 | 재무제표 | 계정ID | 계정명 대체 |
+|---|---|---|---|---|
+| revenue | 매출액 | IS→CIS | ifrs-full_Revenue | 매출액, 수익(매출액), 매출, 영업수익, 매출액(영업수익) |
+| costOfSales | 매출원가 | IS→CIS | ifrs-full_CostOfSales | 매출원가 |
+| grossProfit | 매출총이익 | IS→CIS | ifrs-full_GrossProfit | 매출총이익, 매출총이익(손실) |
+| operatingIncome | 영업이익 | IS→CIS | dart_OperatingIncomeLoss | 영업이익, 영업이익(손실), 영업손익, 영업손실 |
+| netIncome | 당기순이익 | IS→CIS | ifrs-full_ProfitLoss | 당기순이익, 당기순이익(손실), 당기순손익, 연결당기순이익, 당기순손실 |
+| netIncomeOwners | 지배주주순이익 | IS→CIS | ifrs-full_ProfitLossAttributableToOwnersOfParent | 지배기업의 소유주에게 귀속되는 당기순이익, 지배기업소유주지분순이익 |
+| totalAssets | 자산총계 | BS | ifrs-full_Assets | 자산총계 |
+| currentAssets | 유동자산 | BS | ifrs-full_CurrentAssets | 유동자산 |
+| cash | 현금및현금성자산 | BS | ifrs-full_CashAndCashEquivalents | 현금및현금성자산 |
+| inventories | 재고자산 | BS | ifrs-full_Inventories | 재고자산 |
+| totalLiabilities | 부채총계 | BS | ifrs-full_Liabilities | 부채총계 |
+| currentLiabilities | 유동부채 | BS | ifrs-full_CurrentLiabilities | 유동부채 |
+| totalEquity | 자본총계 | BS | ifrs-full_Equity | 자본총계 |
+| equityOwners | 지배주주지분 | BS | ifrs-full_EquityAttributableToOwnersOfParent | 지배기업 소유주지분, 지배기업의 소유주에게 귀속되는 자본 |
+| operatingCashFlow | 영업활동현금흐름 | CF | ifrs-full_CashFlowsFromUsedInOperatingActivities | 영업활동현금흐름, 영업활동으로 인한 현금흐름 |
+| investingCashFlow | 투자활동현금흐름 | CF | ifrs-full_CashFlowsFromUsedInInvestingActivities | 투자활동현금흐름, 투자활동으로 인한 현금흐름 |
+| financingCashFlow | 재무활동현금흐름 | CF | ifrs-full_CashFlowsFromUsedInFinancingActivities | 재무활동현금흐름, 재무활동으로 인한 현금흐름 |
+
+### 5개년 수집
+
+사업보고서 1건에 당기·전기·전전기가 들어 있으므로 최근 사업연도 Y와 Y−3 두 건으로 5개년을 만든다. Y는 작년부터 시도하고 미공시(013)면 재작년으로 내려간다. 겹치는 연도는 최신 보고서 값을 우선하고, 비어 있는 항목만 이전 보고서로 채운다.
+
+## 재무비율 정의
+
+`lib/ratios/index.ts`의 `RATIOS`와 동일하게 유지한다. 입력은 위 표준 계정.
+
+- **평균잔액** = (전기말 + 당기말) ÷ 2. 흐름(손익) ÷ 잔액(재무상태) 비율에 사용
+- 안정성 비율은 시점 지표라 기말 잔액 기준
+- **null 안전**: 입력이 하나라도 없거나, 분모가 0 이하(자본잠식 등)면 `null`. 증가율은 전기 값이 0 이하(적자)면 `null`
+- 첫 표시 연도도 평균·증가율을 낼 수 있도록 6개년 표준 계정으로 계산하고 5개년을 표시
+
+| 구분 | 비율 | 계산식 | 단위 |
+|---|---|---|---|
+| 수익성 | 매출총이익률 | 매출총이익 ÷ 매출액 | % |
+| 수익성 | 영업이익률 | 영업이익 ÷ 매출액 | % |
+| 수익성 | 순이익률 | 당기순이익 ÷ 매출액 | % |
+| 수익성 | ROE | 지배주주순이익 ÷ 평균 지배주주지분 (구분 없으면 당기순이익 ÷ 평균 자본총계) | % |
+| 수익성 | ROA | 당기순이익 ÷ 평균 자산총계 | % |
+| 안정성 | 부채비율 | 부채총계 ÷ 자본총계 | % |
+| 안정성 | 유동비율 | 유동자산 ÷ 유동부채 | % |
+| 안정성 | 당좌비율 | (유동자산 − 재고자산) ÷ 유동부채 | % |
+| 안정성 | 자기자본비율 | 자본총계 ÷ 자산총계 | % |
+| 성장성 | 매출액증가율 | 당기 매출액 ÷ 전기 매출액 − 1 | % |
+| 성장성 | 영업이익증가율 | 당기 영업이익 ÷ 전기 영업이익 − 1 | % |
+| 성장성 | 순이익증가율 | 당기 순이익 ÷ 전기 순이익 − 1 | % |
+| 성장성 | 총자산증가율 | 기말 자산총계 ÷ 전기말 자산총계 − 1 | % |
+| 활동성 | 총자산회전율 | 매출액 ÷ 평균 자산총계 | 회 |
+| 활동성 | 자기자본회전율 | 매출액 ÷ 평균 자본총계 | 회 |
+| 활동성 | 재고자산회전율 | 매출액 ÷ 평균 재고자산 | 회 |
+
+## 기술 스택
+
+<!-- TODO: 원문에서 이 섹션 내용이 비어 있음 — 작성 필요 -->

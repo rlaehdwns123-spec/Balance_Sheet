@@ -1,0 +1,21 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# build / test
+/build
+/coverage
+*.tsbuildinfo
+
+# env — 예시 파일만 커밋
+.env*.local
+!.env.local.example
+
+# misc
+.DS_Store
+npm-debug.log*
+.vercel
