@@ -54,3 +54,13 @@ export type AnnualReport = {
   bsnsYear: number;
   rows: DartAccountRow[];
 };
+
+/** 분기·반기 보고서 코드 */
+export type InterimCode = Exclude<ReportCode, "11011">;
+
+/** 한 분기·반기 보고서의 원본 행 묶음 */
+export type InterimReport = {
+  bsnsYear: number;
+  reprtCode: InterimCode;
+  rows: DartAccountRow[];
+};

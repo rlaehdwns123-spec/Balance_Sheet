@@ -6,7 +6,16 @@ import type { DartErrorKind } from "@/lib/dart/errors";
 
 export type DartErrorInfo = { kind: DartErrorKind; status: string; message: string };
 
-export default function DartErrorView({ error, fs }: { error: DartErrorInfo; fs?: "CFS" | "OFS" }) {
+export default function DartErrorView({
+  error,
+  fs,
+  interim = false,
+}: {
+  error: DartErrorInfo;
+  fs?: "CFS" | "OFS";
+  /** 분기·반기 보고서 조회 중이었는지 */
+  interim?: boolean;
+}) {
   const router = useRouter();
 
   let title: string;
@@ -18,12 +27,14 @@ export default function DartErrorView({ error, fs }: { error: DartErrorInfo; fs?
         fs === "CFS" ? (
           <>
             연결재무제표가 없는 회사일 수 있습니다.{" "}
-            <Link href="?fs=OFS" className="font-medium text-blue-600 underline dark:text-blue-400">
+            <Link href={interim ? "?fs=OFS&pd=Q" : "?fs=OFS"} className="font-medium text-blue-600 underline dark:text-blue-400">
               별도 재무제표 보기
             </Link>
           </>
         ) : (
-          "DART에 사업보고서 재무제표가 없습니다. 신규 상장사이거나 금융업 등 제공되지 않는 회사일 수 있습니다."
+          interim
+            ? "DART에 해당 분기·반기 보고서 재무제표가 없습니다. 아직 공시 전이거나 제공되지 않는 회사일 수 있습니다."
+            : "DART에 사업보고서 재무제표가 없습니다. 신규 상장사이거나 금융업 등 제공되지 않는 회사일 수 있습니다."
         );
       break;
     case "RATE_LIMIT":

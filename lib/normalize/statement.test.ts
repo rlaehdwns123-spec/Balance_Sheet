@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AnnualReport, DartAccountRow, SjDiv } from "@/lib/dart/types";
-import { buildStatementTable, statementYears } from "./statement";
+import { buildInterimTable, buildStatementTable, statementYears } from "./statement";
 
 function row(
   sj_div: SjDiv,
@@ -238,5 +238,76 @@ describe("buildStatementTable", () => {
       [2025, 2024, 2023],
     );
     expect(t.rows.map((r) => r.label)).toEqual(["영업활동현금흐름"]);
+  });
+});
+
+describe("기존 양식 보기", () => {
+  it("IFRS 18 보고서도 기존 순서로, 범주 없이", () => {
+    const ifrs18 = report(2027, [
+      row("IS", 1, "ifrs-full_Revenue", "매출액", ["100"]),
+      row("IS", 2, "dart_OperatingIncomeLoss", "영업이익", ["35"]),
+      row("IS", 3, "dart_OtherGains", "기타수익", ["5"]),
+      row("IS", 4, "ifrs-full_ProfitLossBeforeTax", "법인세비용차감전순이익", ["34"]),
+    ]);
+    const t = buildStatementTable([ifrs18], "IS", [2027], { classic: true });
+    expect(t.rows.map((r) => r.label)).toEqual(["매출액", "영업이익", "기타수익", "법인세비용차감전순이익"]);
+    expect(new Set(t.rows.map((r) => r.section))).toEqual(new Set(["summary"]));
+  });
+});
+
+describe("buildInterimTable", () => {
+  const interimRow = (
+    sj: SjDiv,
+    ord: number,
+    id: string,
+    nm: string,
+    amounts: Partial<Pick<DartAccountRow, "thstrm_amount" | "thstrm_add_amount" | "frmtrm_amount" | "frmtrm_q_amount" | "frmtrm_add_amount">>,
+  ): DartAccountRow => ({ ...row(sj, ord, id, nm, [""]), frmtrm_amount: undefined, bfefrmtrm_amount: undefined, ...amounts });
+
+  const half = {
+    bsnsYear: 2026,
+    reprtCode: "11012" as const,
+    rows: [
+      interimRow("BS", 1, "ifrs-full_Assets", "자산총계", { thstrm_amount: "150", frmtrm_amount: "100" }),
+      interimRow("IS", 1, "ifrs-full_Revenue", "매출액", {
+        thstrm_amount: "60",
+        thstrm_add_amount: "110",
+        frmtrm_q_amount: "40",
+        frmtrm_add_amount: "90",
+      }),
+      interimRow("IS", 2, "ifrs-full_ProfitLoss", "반기순이익", { thstrm_amount: "6", thstrm_add_amount: "11", frmtrm_q_amount: "4" }),
+      interimRow("CF", 1, "ifrs-full_CashFlowsFromUsedInOperatingActivities", "영업활동현금흐름", {
+        thstrm_amount: "30",
+        frmtrm_q_amount: "20",
+      }),
+    ],
+  };
+
+  it("재무상태표는 반기말 vs 전기말", () => {
+    const t = buildInterimTable(half, "BS");
+    expect(t.compare).toBe(true);
+    expect(t.columns.map((c) => c.label)).toEqual(["2026.06", "2025.12"]);
+    expect(t.rows[0].values).toEqual([150, 100]);
+  });
+
+  it("손익계산서는 3개월 또는 누적을 전년 동기와", () => {
+    const q = buildInterimTable(half, "IS", { basis: "q" });
+    expect(q.columns.map((c) => c.label)).toEqual(["2026 2Q", "2025 2Q"]);
+    expect(q.rows[0].values).toEqual([60, 40]);
+
+    const cum = buildInterimTable(half, "IS", { basis: "cum" });
+    expect(cum.columns.map((c) => c.label)).toEqual(["2026 1~2Q", "2025 1~2Q"]);
+    expect(cum.rows.map((r) => r.values)).toEqual([
+      [110, 90],
+      [11, null],
+    ]);
+    // "반기순이익"도 당기순이익 앵커로 인식
+    expect(cum.rows[1].tier).toBe("total");
+  });
+
+  it("현금흐름표는 누적, 전년 동기는 frmtrm_q 필드", () => {
+    const t = buildInterimTable(half, "CF");
+    expect(t.columns[0].sub).toBe("누적");
+    expect(t.rows[0].values).toEqual([30, 20]);
   });
 });

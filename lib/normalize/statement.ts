@@ -1,4 +1,6 @@
-import type { AnnualReport, DartAccountRow } from "@/lib/dart/types";
+import type { AnnualReport, DartAccountRow, InterimReport } from "@/lib/dart/types";
+import { QUARTER_OF } from "@/lib/interim";
+import type { IncomeBasis } from "@/lib/statementParams";
 import { parseAmount } from "./parse";
 
 /** 화면용 재무제표 구분. IS는 손익계산서가 없으면 포괄손익계산서(CIS)로 대체 */
@@ -29,8 +31,14 @@ export type StatementRow = {
 /** 손익계산서 양식: 기존 K-IFRS / IFRS 18 / 연도별로 섞임 */
 export type IncomeFormat = "kifrs" | "ifrs18" | "mixed";
 
+/** 표의 값 열 (rows[].values와 같은 순서) */
+export type StatementColumn = { key: string; label: string; sub?: string };
+
 export type StatementTable = {
   kind: StatementKind;
+  columns: StatementColumn[];
+  /** 두 열(당기·비교기간)을 비교하는 표면 증감률 열을 붙인다 */
+  compare: boolean;
   /** 실제로 사용한 DART 재무제표 구분 (IS 탭이 CIS로 대체됐는지 표시용) */
   source: "BS" | "IS" | "CIS" | "CF" | null;
   /** 손익계산서 양식 (IS 외에는 항상 kifrs) */
@@ -140,14 +148,14 @@ const IS_SUMMARY: Anchor[] = [
   { rank: 700, level: 1, childLevel: 1, ids: ["ifrs-full_IncomeTaxExpenseContinuingOperations"], names: /^법인세(비용|수익)/ },
   { rank: 750, level: 1, childLevel: 1, ids: ["ifrs-full_ProfitLossFromContinuingOperations"], names: /^계속영업/ },
   { rank: 760, level: 1, childLevel: 1, ids: ["ifrs-full_ProfitLossFromDiscontinuedOperations"], names: /^중단영업/ },
-  { rank: 800, level: 0, tier: "total", childLevel: 1, ids: ["ifrs-full_ProfitLoss"], names: /^(연결)?당기순(이익|손익|손실)/ },
-  { rank: 810, level: 1, childLevel: 1, ids: ["ifrs-full_ProfitLossAttributableToOwnersOfParent"], names: /^지배기업.*당기순/ },
+  { rank: 800, level: 0, tier: "total", childLevel: 1, ids: ["ifrs-full_ProfitLoss"], names: /^(연결)?(당기|반기|분기)순(이익|손익|손실)/ },
+  { rank: 810, level: 1, childLevel: 1, ids: ["ifrs-full_ProfitLossAttributableToOwnersOfParent"], names: /^지배(기업|회사).*(당기|반기|분기)순/ },
   {
     rank: 820,
     level: 1,
     childLevel: 1,
     ids: ["ifrs-full_ProfitLossAttributableToNoncontrollingInterests"],
-    names: /^비지배지분.*당기순/,
+    names: /^비지배지분.*(당기|반기|분기)순/,
   },
   { rank: 900, level: 1, childLevel: 2, ids: ["ifrs-full_OtherComprehensiveIncome"], names: /^기타포괄(손익|이익)$/ },
   { rank: 1000, level: 0, tier: "total", childLevel: 1, ids: ["ifrs-full_ComprehensiveIncome"], names: /^총포괄(손익|이익)/ },
@@ -245,15 +253,24 @@ const CF_LAYOUT: Layout = {
       names: /^현금및현금성자산의?(순증감|순증가|증가|감소)/,
     },
     { rank: 600, level: 0, childLevel: 1, ids: ["dart_CashAndCashEquivalentsAtBeginningOfPeriodCf"], names: /^기초.*현금/ },
-    { rank: 700, level: 0, tier: "total", childLevel: 1, ids: ["dart_CashAndCashEquivalentsAtEndOfPeriodCf"], names: /^기말.*현금/ },
+    { rank: 700, level: 0, tier: "total", childLevel: 1, ids: ["dart_CashAndCashEquivalentsAtEndOfPeriodCf"], names: /^(기말|(반|분)기말).*현금/ },
   ],
   sectionOf: (rank) => (rank < 200 ? "operating" : rank < 300 ? "investing" : rank < 400 ? "financing" : "summary"),
 };
 
+/** 기존 K-IFRS 양식 그대로 보기: 계정 순서는 기존 양식, 영업·투자·재무 범주 없음 */
+const IS_LAYOUT_CLASSIC: Layout = { ...IS_LAYOUT, sectionOf: () => "summary" };
+
+export type TableOptions = {
+  /** 손익계산서를 IFRS 18 범주 없이 기존 양식으로 */
+  classic?: boolean;
+};
+
 /** 재무제표 종류·보고서 양식에 맞는 배치 */
-function layoutFor(kind: StatementKind, rows: DartAccountRow[]): Layout {
+function layoutFor(kind: StatementKind, rows: DartAccountRow[], { classic = false }: TableOptions = {}): Layout {
   if (kind === "BS") return BS_LAYOUT;
   if (kind === "CF") return CF_LAYOUT;
+  if (classic) return IS_LAYOUT_CLASSIC;
   return isIfrs18Income(rows) ? IS_LAYOUT_IFRS18 : IS_LAYOUT;
 }
 
@@ -355,7 +372,12 @@ export function statementYears(reports: AnnualReport[], count = 5): number[] {
  * 사업보고서들 → 화면용 재무제표 표.
  * 행 순서·라벨은 최신 보고서 기준, 이전 보고서에만 있는 계정은 해당 구간 끝에 붙인다.
  */
-export function buildStatementTable(reports: AnnualReport[], kind: StatementKind, years: number[]): StatementTable {
+export function buildStatementTable(
+  reports: AnnualReport[],
+  kind: StatementKind,
+  years: number[],
+  options: TableOptions = {},
+): StatementTable {
   const newestFirst = [...reports].sort((a, b) => b.bsnsYear - a.bsnsYear);
   const entries: Entry[] = [];
   let source: StatementTable["source"] = null;
@@ -365,7 +387,7 @@ export function buildStatementTable(reports: AnnualReport[], kind: StatementKind
     const picked = pickRows(report.rows, kind);
     source ??= picked.source;
     if (kind === "IS" && picked.rows.length) formats.add(isIfrs18Income(picked.rows) ? "ifrs18" : "kifrs");
-    for (const c of classify(picked.rows, layoutFor(kind, picked.rows))) {
+    for (const c of classify(picked.rows, layoutFor(kind, picked.rows, options))) {
       let entry = findMatch(entries, c, reportIdx);
       if (!entry) {
         const order: [number, number] = [reportIdx, Number(c.row.ord)];
@@ -402,5 +424,70 @@ export function buildStatementTable(reports: AnnualReport[], kind: StatementKind
     .filter((r) => r.values.some((v) => v !== null));
 
   const format: IncomeFormat = formats.size > 1 ? "mixed" : formats.has("ifrs18") ? "ifrs18" : "kifrs";
-  return { kind, source, format, rows };
+  const columns = years.map((y) => ({ key: String(y), label: String(y) }));
+  return { kind, columns, compare: false, source, format, rows };
+}
+
+type AmountField = keyof Pick<
+  DartAccountRow,
+  "thstrm_amount" | "thstrm_add_amount" | "frmtrm_amount" | "frmtrm_q_amount" | "frmtrm_add_amount"
+>;
+
+/** 첫 필드가 비어 있으면 다음 필드로 (회사마다 전년 동기 값을 frmtrm_q / frmtrm 중 한쪽에 넣음) */
+const amountOf = (row: DartAccountRow, fields: AmountField[]) =>
+  fields.reduce<number | null>((v, f) => v ?? parseAmount(row[f]), null);
+
+/**
+ * 분기·반기 보고서 → 당기와 비교 기간 두 열의 표.
+ * - 재무상태표: 당분기말 vs 전기말(작년 말)
+ * - 손익계산서: 해당 분기 3개월(basis=q) 또는 연초부터 누적(cum)을 전년 동기와
+ * - 현금흐름표: 연초부터 누적을 전년 동기와
+ */
+export function buildInterimTable(
+  report: InterimReport,
+  kind: StatementKind,
+  { basis = "q", ...options }: TableOptions & { basis?: IncomeBasis } = {},
+): StatementTable {
+  const { bsnsYear: year, reprtCode } = report;
+  const quarter = QUARTER_OF[reprtCode];
+  // 1분기는 3개월 = 누적
+  const cumulative = kind === "CF" || (kind === "IS" && (basis === "cum" || quarter === 1));
+  const range = quarter === 1 ? "1Q" : `1~${quarter}Q`;
+
+  const [current, prior]: [AmountField[], AmountField[]] =
+    kind === "BS"
+      ? [["thstrm_amount"], ["frmtrm_amount"]]
+      : kind === "CF"
+        ? [["thstrm_amount"], ["frmtrm_q_amount", "frmtrm_amount"]]
+        : cumulative && quarter > 1
+          ? [["thstrm_add_amount"], ["frmtrm_add_amount"]]
+          : [["thstrm_amount"], ["frmtrm_q_amount", "frmtrm_amount"]];
+
+  const columns: StatementColumn[] =
+    kind === "BS"
+      ? [
+          { key: "cur", label: `${year}.${String(quarter * 3).padStart(2, "0")}`, sub: `${quarter === 2 ? "반기" : "분기"}말` },
+          { key: "prior", label: `${year - 1}.12`, sub: "전기말" },
+        ]
+      : [
+          { key: "cur", label: `${year} ${cumulative ? range : `${quarter}Q`}`, sub: cumulative ? "누적" : "3개월" },
+          { key: "prior", label: `${year - 1} ${cumulative ? range : `${quarter}Q`}`, sub: "전년 동기" },
+        ];
+
+  const picked = pickRows(report.rows, kind);
+  const rows = classify(picked.rows, layoutFor(kind, picked.rows, options))
+    .sort((a, b) => a.rank - b.rank || Number(b.isAnchor) - Number(a.isAnchor) || Number(a.row.ord) - Number(b.row.ord))
+    .map((c, i) => ({
+      key: `${c.row.ord}-${i}`,
+      label: c.row.account_nm.trim(),
+      level: c.level,
+      tier: c.tier,
+      section: c.section,
+      perShare: isPerShare(c.row),
+      values: [amountOf(c.row, current), amountOf(c.row, prior)],
+    }))
+    .filter((r) => r.values.some((v) => v !== null));
+
+  const format: IncomeFormat = kind === "IS" && isIfrs18Income(picked.rows) ? "ifrs18" : "kifrs";
+  return { kind, columns, compare: true, source: picked.source, format, rows };
 }

@@ -2,7 +2,8 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { DartError, isDartError } from "./errors";
 import type { MultiAccountRow } from "@/lib/benchmark";
-import type { AnnualReport, DartAccountRow, DartCompany, FsDiv, ReportCode } from "./types";
+import { interimCandidates, type InterimRef } from "@/lib/interim";
+import type { AnnualReport, DartAccountRow, DartCompany, FsDiv, InterimReport, ReportCode } from "./types";
 
 const BASE_URL = "https://opendart.fss.or.kr/api";
 const REVALIDATE_SECONDS = 86400;
@@ -111,4 +112,25 @@ export async function getRecentAnnualReports(
     if (!isDartError(err, "NO_DATA")) throw err;
     return [latest];
   }
+}
+
+/**
+ * 분기·반기 보고서 한 건. ref를 주면 그 보고서, 없으면 최신 보고서를 찾는다
+ * (분기가 끝난 보고서부터 공시 전(013)이면 한 단계씩 앞으로, 최대 4건 시도).
+ */
+export async function getInterimReport(
+  corpCode: string,
+  fsDiv: FsDiv,
+  ref: InterimRef | null,
+  now: Date = new Date(),
+): Promise<InterimReport> {
+  const candidates = ref ? [ref] : interimCandidates(now);
+  for (const [i, { year, code }] of candidates.entries()) {
+    try {
+      return { bsnsYear: year, reprtCode: code, rows: await getSinglAcntAll(corpCode, year, code, fsDiv) };
+    } catch (err) {
+      if (!isDartError(err, "NO_DATA") || i === candidates.length - 1) throw err;
+    }
+  }
+  throw new DartError("013", "조회된 데이타가 없습니다.");
 }

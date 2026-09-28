@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAmount, formatRatio, formatRatioDelta, formatWonCompact } from "./format";
+import { formatAmount, formatChange, formatRatio, formatRatioDelta, formatWonCompact } from "./format";
 
 describe("formatWonCompact", () => {
   it("1조 이상은 조, 미만은 억", () => {
@@ -62,5 +62,25 @@ describe("formatAmount", () => {
   it("주당 값은 원 단위 그대로", () => {
     expect(formatAmount(6605, "eok", true)).toEqual({ text: "6,605", negative: false });
     expect(formatAmount(-120, "mil", true)).toEqual({ text: "(120)", negative: true });
+  });
+});
+
+describe("formatChange", () => {
+  it("비교 기간 대비 증감률, 분모는 절댓값", () => {
+    expect(formatChange(120, 100)).toEqual({ direction: "up", text: "20.0%" });
+    expect(formatChange(80, 100)).toEqual({ direction: "down", text: "20.0%" });
+    expect(formatChange(-50, -100)).toEqual({ direction: "up", text: "50.0%" });
+    expect(formatChange(100, 100)).toEqual({ direction: "flat", text: "0.0%" });
+  });
+
+  it("값이 없거나 비교 기간이 0이면 –", () => {
+    expect(formatChange(null, 100).text).toBe("–");
+    expect(formatChange(100, 0).text).toBe("–");
+  });
+
+  it("손익 항목은 부호가 바뀌면 흑자·적자전환", () => {
+    expect(formatChange(10, -5, true)).toEqual({ direction: "up", text: "흑자전환" });
+    expect(formatChange(-10, 5, true)).toEqual({ direction: "down", text: "적자전환" });
+    expect(formatChange(-10, -5, true)).toEqual({ direction: "none", text: "적자지속" });
   });
 });

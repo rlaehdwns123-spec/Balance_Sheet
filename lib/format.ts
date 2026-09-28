@@ -43,6 +43,28 @@ export function formatRatioDelta(
 }
 
 /**
+ * 비교 기간 대비 증감률. 분모는 |비교 기간 값|이라 음수끼리도 "커지면 +".
+ * turnaround(손익 항목)면 부호가 바뀔 때 흑자전환·적자전환, 둘 다 음수면 적자지속.
+ */
+export function formatChange(
+  current: number | null,
+  prior: number | null,
+  turnaround = false,
+): { direction: "up" | "down" | "flat" | "none"; text: string } {
+  if (current === null || prior === null) return { direction: "none", text: "–" };
+  if (turnaround) {
+    if (prior < 0 && current > 0) return { direction: "up", text: "흑자전환" };
+    if (prior > 0 && current < 0) return { direction: "down", text: "적자전환" };
+    if (prior < 0 && current < 0) return { direction: "none", text: "적자지속" };
+  }
+  if (prior === 0) return { direction: "none", text: "–" };
+  const rate = ((current - prior) / Math.abs(prior)) * 100;
+  const shown = fixed(Math.abs(rate), 1);
+  if (Number(shown.replace(/,/g, "")) === 0) return { direction: "flat", text: "0.0%" };
+  return { direction: rate > 0 ? "up" : "down", text: `${shown}%` };
+}
+
+/**
  * 차트 축용 짧은 금액: 1조 이상이면 "12조", 아니면 "3,400억". 0은 "0".
  * step이 1조 미만이면 조 단위라도 소수 1자리.
  */
