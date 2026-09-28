@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:corps": "tsx scripts/build-corp-list.ts",
-    "vercel-build": "npm run build:corps -- --keep-on-error && next build"
+    "vercel-build": "npm run build:corps -- --keep-on-error && next build",
+    "build:industries": "tsx scripts/build-industries.ts"
   },
   "dependencies": {
     "fflate": "^0.8.3",

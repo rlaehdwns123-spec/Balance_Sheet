@@ -1,6 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { DartError, isDartError } from "./errors";
+import type { MultiAccountRow } from "@/lib/benchmark";
 import type { AnnualReport, DartAccountRow, DartCompany, FsDiv, ReportCode } from "./types";
 
 const BASE_URL = "https://opendart.fss.or.kr/api";
@@ -52,6 +53,29 @@ export const getSinglAcntAll = unstable_cache(
     return body.list;
   },
   ["dart-fnltt-singl-acnt-all"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/**
+ * 다중회사 주요계정 (fnlttMultiAcnt) — 사업보고서 기준, 한 번에 최대 100개사.
+ * 해당 연도 보고서가 한 곳도 없으면(013) 빈 목록.
+ */
+export const getMultiAccounts = unstable_cache(
+  async (corpCodes: string[], bsnsYear: number): Promise<MultiAccountRow[]> => {
+    if (corpCodes.length > 100) throw new Error("fnlttMultiAcnt는 한 번에 100개사까지");
+    try {
+      const body = await dartGet<{ status: string; message: string; list: MultiAccountRow[] }>("fnlttMultiAcnt.json", {
+        corp_code: corpCodes.join(","),
+        bsns_year: String(bsnsYear),
+        reprt_code: "11011",
+      });
+      return body.list;
+    } catch (err) {
+      if (isDartError(err, "NO_DATA")) return [];
+      throw err;
+    }
+  },
+  ["dart-fnltt-multi-acnt"],
   { revalidate: REVALIDATE_SECONDS },
 );
 

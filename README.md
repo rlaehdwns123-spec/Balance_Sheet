@@ -29,6 +29,7 @@ DART 인증키는 [opendart.fss.or.kr](https://opendart.fss.or.kr) → 인증키
 | `npm run typecheck` | 타입 검사 |
 | `npm run build` / `npm start` | 프로덕션 빌드 / 실행 |
 | `npm run build:corps` | DART 고유번호 zip → `data/corps.json` (상장사만) |
+| `npm run build:industries` | 상장사별 업종코드 → `data/industries.json` (동일업종 비교용, 약 15분, 이어받기 가능) |
 
 > dev 서버가 켜진 상태에서 `npm run build`를 돌리면 `.next`가 덮여 dev 서버가 깨집니다. 하나씩 실행하세요.
 
@@ -42,6 +43,8 @@ DART 인증키는 [opendart.fss.or.kr](https://opendart.fss.or.kr) → 인증키
 npm run build:corps
 git add data/corps.json
 ```
+
+재무비율의 동일업종 비교에 쓰는 `data/industries.json`도 함께 커밋합니다. 회사당 기업개황 API를 1번씩 불러 만드는 파일이라 배포 빌드에서는 만들지 않습니다. 업종은 거의 바뀌지 않으니, 신규 상장사가 쌓였을 때 가끔 `npm run build:industries`로 갱신하세요. 이미 받은 회사는 건너뜁니다. 목록에 없는 회사는 업종 비교에서만 빠집니다.
 
 `.env.local`은 `.gitignore`에 있어 커밋되지 않습니다. 인증키는 아래 3단계에서 Vercel에만 넣습니다.
 

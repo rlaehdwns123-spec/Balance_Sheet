@@ -2,9 +2,9 @@ import type { NextConfig } from "next";
 import { HTML_LIMITED_BOT_UA_RE } from "next/dist/shared/lib/router/utils/html-bots";
 
 const nextConfig: NextConfig = {
-  // data/corps.json은 런타임에 fs로 읽으므로 서버리스 번들에 명시적으로 포함 (Vercel)
+  // data/*.json(상장사 목록·업종코드)은 런타임에 fs로 읽으므로 서버리스 번들에 명시적으로 포함 (Vercel)
   outputFileTracingIncludes: {
-    "/**": ["./data/corps.json"],
+    "/**": ["./data/corps.json", "./data/industries.json"],
   },
   // 링크 미리보기 크롤러에는 metadata를 스트리밍하지 않고 <head>에 넣는다.
   // Next 기본 목록(구글·네이버 Yeti·페이스북 등)에 카카오톡 크롤러를 추가.

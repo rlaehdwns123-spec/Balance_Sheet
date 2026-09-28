@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ACCOUNT_KEYS, type StandardAccounts } from "@/lib/normalize";
+import { RATIO_GUIDE } from "./guide";
 import { average, computeRatios, growthRate, RATIOS, safeDiv } from "./index";
 
 function accounts(year: number, values: Partial<StandardAccounts>): StandardAccounts {
@@ -76,6 +77,15 @@ describe("computeRatios — 삼성전자 2025 손계산 대조", () => {
     expect(y2024.values.roa).toBeNull();
     expect(y2024.values.revenueGrowth).toBeNull();
     expect(y2024.values.operatingMargin).toBeCloseTo(32725961 / 300870903, 12); // 기말·당기 기준 비율은 계산됨
+  });
+});
+
+describe("RATIO_GUIDE", () => {
+  it("모든 비율에 의미·읽는 법 설명이 있다", () => {
+    for (const r of RATIOS) {
+      expect(RATIO_GUIDE[r.key]?.meaning, r.key).toBeTruthy();
+      expect(RATIO_GUIDE[r.key]?.guide, r.key).toBeTruthy();
+    }
   });
 });
 
