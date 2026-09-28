@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
-/** 재무제표 / 재무비율 / 차트 탭. 연결·별도(fs) 선택은 탭을 옮겨도 유지 */
+/** 재무제표 / 재무비율 / 차트 / 분석 탭. 연결·별도(fs) 선택은 탭을 옮겨도 유지 */
 export default function CompanyTabs({ corpCode }: { corpCode: string }) {
   const pathname = usePathname();
   const fs = useSearchParams().get("fs");
@@ -13,6 +13,7 @@ export default function CompanyTabs({ corpCode }: { corpCode: string }) {
     { href: `/company/${corpCode}`, label: "재무제표" },
     { href: `/company/${corpCode}/ratios`, label: "재무비율" },
     { href: `/company/${corpCode}/charts`, label: "차트" },
+    { href: `/company/${corpCode}/analysis`, label: "분석" },
   ];
 
   return (

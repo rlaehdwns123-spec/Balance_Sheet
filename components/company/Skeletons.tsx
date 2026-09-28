@@ -91,6 +91,34 @@ export function RatioSkeleton() {
   );
 }
 
+export function AnalysisSkeleton() {
+  return (
+    <div role="status" aria-label="분석 불러오는 중" className="space-y-4">
+      <div className={`h-3 w-64 ${bar}`} />
+      <div className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <div className={`h-5 w-20 ${bar}`} />
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className={`h-24 rounded-xl ${bar}`} />
+          ))}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <div className={`h-5 w-24 ${bar}`} />
+        <div className="mt-4 space-y-4">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="grid grid-cols-5 gap-1">
+              {Array.from({ length: 5 }, (_, j) => (
+                <div key={j} className={`h-12 rounded-lg ${bar}`} />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TableSkeleton({ rows = 12 }: { rows?: number }) {
   return (
     <div role="status" aria-label="재무제표 불러오는 중">

@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { clearRecent, readRecent, removeRecent, subscribeRecent, type RecentCorp } from "@/lib/recent";
 
-/** 최근 본 기업 목록. 기록이 없거나 저장소를 못 쓰면 아무것도 그리지 않는다 */
-export default function RecentCompanies({ title = "최근 본 기업" }: { title?: string }) {
+/**
+ * 최근 본 기업 목록. 기록이 없거나 저장소를 못 쓰면 아무것도 그리지 않는다.
+ * section을 주면 회사 화면의 해당 탭으로 연결 (예: "analysis" → /company/{code}/analysis)
+ */
+export default function RecentCompanies({ title = "최근 본 기업", section }: { title?: string; section?: string }) {
   // 서버 렌더와 일치시키기 위해 마운트 후에 읽는다
   const [items, setItems] = useState<RecentCorp[]>([]);
 
@@ -35,7 +38,7 @@ export default function RecentCompanies({ title = "최근 본 기업" }: { title
         {items.map((c) => (
           <li key={c.corpCode} className="flex items-center">
             <Link
-              href={`/company/${c.corpCode}`}
+              href={`/company/${c.corpCode}${section ? `/${section}` : ""}`}
               className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 hover:bg-neutral-50 active:bg-neutral-100 dark:hover:bg-neutral-900 dark:active:bg-neutral-800"
             >
               <span className="truncate font-medium">{c.name}</span>

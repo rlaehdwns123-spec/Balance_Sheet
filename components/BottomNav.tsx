@@ -10,8 +10,12 @@ const TABS = [
   { href: "/compare", label: "비교", icon: "M8 3v18M16 3v18M3 8h5M16 16h5" },
 ] as const;
 
+/** 회사 화면의 분석 탭은 하단 "분석", 나머지 회사 화면은 "재무제표"에 속한다 */
+const COMPANY_ANALYSIS = /^\/company\/[^/]+\/analysis/;
+
 export default function BottomNav() {
   const pathname = usePathname();
+  const inCompanyAnalysis = COMPANY_ANALYSIS.test(pathname);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/95">
@@ -20,7 +24,9 @@ export default function BottomNav() {
           const active =
             tab.href === "/"
               ? pathname === "/"
-              : pathname.startsWith(tab.href) || ("also" in tab && pathname.startsWith(tab.also));
+              : tab.href === "/analysis"
+                ? pathname.startsWith(tab.href) || inCompanyAnalysis
+                : pathname.startsWith(tab.href) || ("also" in tab && pathname.startsWith(tab.also) && !inCompanyAnalysis);
           return (
             <li key={tab.href}>
               <Link
