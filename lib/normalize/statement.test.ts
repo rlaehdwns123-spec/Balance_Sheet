@@ -74,8 +74,101 @@ describe("buildStatementTable", () => {
       "자본총계",
       "부채와자본총계",
     ]);
-    expect(t.rows.find((r) => r.label === "자산총계")?.emphasis).toBe(true);
-    expect(t.rows.find((r) => r.label === "미수금")?.emphasis).toBe(false);
+    const byLabel = (label: string) => t.rows.find((r) => r.label === label)!;
+    expect(byLabel("자산총계")).toMatchObject({ tier: "total", section: "assets" });
+    expect(byLabel("유동자산")).toMatchObject({ tier: "subtotal", section: "assets" });
+    expect(byLabel("미수금")).toMatchObject({ tier: "item", section: "assets" });
+    expect(byLabel("단기차입금")).toMatchObject({ tier: "item", section: "liabilities" });
+    // ord상 자산 구간에 끼어 있던 자본 항목도 자본 범주로
+    expect(byLabel("기타자본항목").section).toBe("equity");
+    expect(byLabel("부채와자본총계")).toMatchObject({ tier: "total", section: "summary" });
+  });
+
+  it("기존 양식 손익계산서를 IFRS 18 범주(영업·투자·재무)로 나눈다", () => {
+    // 2025년 이후 DART처럼 ord가 뒤섞인 기존(K-IFRS) 양식
+    const t = buildStatementTable(
+      [
+        report(2025, [
+          row("IS", 1, "dart_OperatingIncomeLoss", "영업이익", ["30"]),
+          row("IS", 2, "dart_OtherGains", "기타수익", ["5"]),
+          row("IS", 3, "ifrs-full_FinanceCosts", "금융비용", ["4"]),
+          row("IS", 4, "ifrs-full_FinanceIncome", "금융수익", ["3"]),
+          row("IS", 5, "ifrs-full_ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod", "지분법이익", ["2"]),
+          row("IS", 6, "ifrs-full_ProfitLossBeforeTax", "법인세비용차감전순이익", ["36"]),
+          row("IS", 7, "ifrs-full_ProfitLoss", "당기순이익", ["28"]),
+          row("IS", 8, "ifrs-full_Revenue", "매출액", ["100"]),
+        ]),
+      ],
+      "IS",
+      [2025],
+    );
+    expect(t.format).toBe("kifrs");
+    expect(t.rows.map((r) => [r.label, r.section, r.tier])).toEqual([
+      ["매출액", "operating", "subtotal"],
+      ["영업이익", "operating", "total"],
+      ["기타수익", "operating", "item"],
+      ["지분법이익", "investing", "item"],
+      ["금융수익", "investing", "item"],
+      ["금융비용", "financing", "item"],
+      ["법인세비용차감전순이익", "summary", "subtotal"],
+      ["당기순이익", "summary", "total"],
+    ]);
+  });
+
+  it("IFRS 18 양식이면 기타 영업손익을 영업이익 앞에, '재무 및 법인세 전 이익'을 투자 범주 끝에 둔다", () => {
+    const ifrs18 = report(2027, [
+      row("IS", 1, "ifrs-full_Revenue", "매출액", ["100"]),
+      row("IS", 2, "dart_OperatingIncomeLoss", "영업이익", ["35"]),
+      row("IS", 3, NONE, "기타영업수익", ["5"]),
+      row("IS", 4, NONE, "투자수익", ["3"]),
+      row("IS", 5, NONE, "재무 및 법인세 전 이익", ["38"]),
+      row("IS", 6, NONE, "이자비용", ["4"]),
+      row("IS", 7, "ifrs-full_ProfitLossBeforeTax", "법인세비용차감전순이익", ["34"]),
+    ]);
+    const t = buildStatementTable([ifrs18], "IS", [2027]);
+    expect(t.format).toBe("ifrs18");
+    expect(t.rows.map((r) => [r.label, r.section])).toEqual([
+      ["매출액", "operating"],
+      ["기타영업수익", "operating"],
+      ["영업이익", "operating"],
+      ["투자수익", "investing"],
+      ["재무 및 법인세 전 이익", "investing"],
+      ["이자비용", "financing"],
+      ["법인세비용차감전순이익", "summary"],
+    ]);
+    expect(t.rows.find((r) => r.label === "재무 및 법인세 전 이익")?.tier).toBe("subtotal");
+  });
+
+  it("새 양식과 기존 양식 보고서가 섞이면 mixed", () => {
+    const older = report(2025, [row("IS", 1, "ifrs-full_Revenue", "매출액", ["90", "80", "70"])]);
+    const newer = report(2028, [
+      row("IS", 1, "ifrs-full_Revenue", "매출액", ["120", "110", "100"]),
+      row("IS", 2, NONE, "재무및법인세전이익", ["20", "18", "16"]),
+    ]);
+    const t = buildStatementTable([older, newer], "IS", statementYears([older, newer]));
+    expect(t.format).toBe("mixed");
+    expect(t.rows[0].values).toEqual([120, 110, 100, 90, 80]);
+  });
+
+  it("현금흐름표는 활동별 범주, 현금 증감·기말현금은 요약", () => {
+    const t = buildStatementTable(
+      [
+        report(2025, [
+          row("CF", 1, "dart_CashAndCashEquivalentsAtEndOfPeriodCf", "기말현금및현금성자산", ["50"]),
+          row("CF", 2, "ifrs-full_CashFlowsFromUsedInFinancingActivities", "재무활동현금흐름", ["-5"]),
+          row("CF", 3, NONE, "배당금의 지급", ["5"]),
+          row("CF", 4, "ifrs-full_CashFlowsFromUsedInOperatingActivities", "영업활동현금흐름", ["20"]),
+        ]),
+      ],
+      "CF",
+      [2025],
+    );
+    expect(t.rows.map((r) => [r.label, r.section, r.tier])).toEqual([
+      ["영업활동현금흐름", "operating", "subtotal"],
+      ["재무활동현금흐름", "financing", "subtotal"],
+      ["배당금의 지급", "financing", "item"],
+      ["기말현금및현금성자산", "summary", "total"],
+    ]);
   });
 
   it("손익계산서가 없으면 포괄손익계산서를 쓴다", () => {

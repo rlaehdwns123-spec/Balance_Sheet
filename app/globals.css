@@ -13,3 +13,57 @@
 body {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ── 재무제표 표: 범주 색 + 행 위계 ─────────────────────────────
+   sticky 열 아래로 숫자가 비치지 않도록 배경은 모두 불투명(color-mix로 페이지 배경과 섞음) */
+:root {
+  --surface: #ffffff;
+  --fs-line: var(--color-neutral-200);
+  --fs-rule: var(--color-neutral-400);
+}
+.dark {
+  --surface: var(--color-neutral-950);
+  --fs-line: var(--color-neutral-800);
+  --fs-rule: var(--color-neutral-500);
+}
+
+/* 범주 색: 영업·자산 파랑 / 투자·자본 초록 / 재무·부채 주황. 영업·투자·재무는 손익·현금흐름에서 같은 색 */
+[data-section="operating"],
+[data-section="assets"] {
+  --accent: var(--color-blue-500);
+}
+[data-section="investing"],
+[data-section="equity"] {
+  --accent: var(--color-emerald-500);
+}
+[data-section="financing"],
+[data-section="liabilities"] {
+  --accent: var(--color-amber-500);
+}
+[data-section="summary"] {
+  --accent: transparent;
+}
+
+.fs-cell {
+  background: var(--surface);
+}
+.fs-subtotal .fs-cell {
+  background: color-mix(in oklab, var(--color-neutral-500) 7%, var(--surface));
+}
+.fs-total .fs-cell {
+  background: color-mix(in oklab, var(--color-neutral-500) 14%, var(--surface));
+  border-top: 1.5px solid var(--fs-rule);
+}
+.fs-header .fs-cell {
+  background: color-mix(in oklab, var(--accent) 14%, var(--surface));
+}
+/* 어두운 배경에서는 같은 비율이 너무 옅어 보여 조금 진하게 */
+.dark .fs-header .fs-cell {
+  background: color-mix(in oklab, var(--accent) 24%, var(--surface));
+}
+/* 계정명(sticky) 열: 왼쪽 범주 색 띠 + 오른쪽 구분선 */
+.fs-sticky {
+  box-shadow:
+    inset 3px 0 0 var(--accent, transparent),
+    1px 0 0 var(--fs-line);
+}

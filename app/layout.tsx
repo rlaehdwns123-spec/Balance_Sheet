@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-dvh bg-white text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100">
-        <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
+        <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
           <div className="mx-auto flex h-14 max-w-screen-md items-center justify-between px-4">
             <span className="text-base font-semibold">DART 재무 분석</span>
             <ThemeToggle />
