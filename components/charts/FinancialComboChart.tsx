@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { alignedTicks, niceTicks } from "@/lib/chartTicks";
-import { formatAmount, formatRatio, formatWonCompact } from "@/lib/format";
+import { currencyName, formatAmount, formatRatio, formatWonCompact } from "@/lib/format";
 import ChartTooltip from "./ChartTooltip";
 import { useChartTheme } from "./theme";
 
@@ -35,9 +35,13 @@ const BARS = [
 
 const MARGIN_LABEL = "영업이익률(우축)";
 
-/** 매출·영업이익·순이익 막대(좌축, 원) + 영업이익률 선(우축, %) */
-export default function FinancialComboChart({ data }: { data: ComboPoint[] }) {
+/**
+ * 매출·영업이익·순이익 막대(좌축, 원) + 영업이익률 선(우축, %).
+ * currency를 주면(미국 기업 등) 툴팁 금액에 통화를 붙인다 — 축은 억·조 숫자만이라 차트 설명에 통화를 밝힐 것
+ */
+export default function FinancialComboChart({ data, currency = "KRW" }: { data: ComboPoint[]; currency?: string }) {
   const theme = useChartTheme();
+  const unitSuffix = currency === "KRW" ? "억" : `억 ${currencyName(currency)}`;
   const amounts = data.flatMap((d) => [d.revenue, d.operatingIncome, d.netIncome]).filter((v) => v != null);
   const margins = data.map((d) => d.operatingMargin).filter((v) => v != null);
   // 우축은 좌축과 칸 수·0선을 맞춰 격자선 하나로 두 축을 읽게 한다
@@ -86,7 +90,7 @@ export default function FinancialComboChart({ data }: { data: ComboPoint[] }) {
                       key: b.key,
                       label: b.label,
                       color: theme.series[b.slot],
-                      value: v == null ? "–" : `${formatAmount(v, "eok").text}억`,
+                      value: v == null ? "–" : `${formatAmount(v, "eok").text}${unitSuffix}`,
                     };
                   }),
                   {

@@ -1,6 +1,9 @@
 /** 관심기업 (브라우저 localStorage). 저장 실패·손상된 값에도 앱이 깨지지 않도록 모두 try/catch */
 
-export type WatchCorp = { corpCode: string; name: string; stockCode: string; addedAt: number };
+import { isValidCode, type Market } from "./market";
+
+/** corpCode는 한국 8자리 고유번호 또는 미국 10자리 CIK(market: "us"), stockCode는 종목코드 또는 티커 */
+export type WatchCorp = { corpCode: string; name: string; stockCode: string; market?: Market; addedAt: number };
 
 const KEY = "dart:watchlist";
 export const MAX_WATCH = 50;
@@ -10,8 +13,7 @@ function isWatchCorp(v: unknown): v is WatchCorp {
   if (typeof v !== "object" || v === null) return false;
   const r = v as Record<string, unknown>;
   return (
-    typeof r.corpCode === "string" &&
-    /^\d{8}$/.test(r.corpCode) &&
+    isValidCode(r.corpCode, r.market) &&
     typeof r.name === "string" &&
     typeof r.stockCode === "string" &&
     typeof r.addedAt === "number"

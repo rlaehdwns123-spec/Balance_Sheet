@@ -1,12 +1,19 @@
 import type { Analysis } from "@/lib/analysis";
 import type { RiskCheck } from "@/lib/analysis/risk";
 import type { MetricUnit } from "@/lib/format";
+import type { Market } from "@/lib/market";
 import type { StatementTable } from "@/lib/normalize/statement";
 import { CATEGORY_LABEL, RATIOS, type RatioYear } from "@/lib/ratios";
 
 /** /api/export 응답 — 클라이언트가 이걸로 엑셀 파일을 만든다 */
 export type ExportPayload = {
   company: { corpCode: string; name: string; stockCode: string };
+  market: Market;
+  /** 금액 통화 (한국 KRW, 미국 기업은 보고 통화). 금액은 이 통화 1단위 값 그대로 */
+  currency: string;
+  /** 시트 둘째 줄 기준 문구 (예: "연결 · DART 사업보고서", "SEC 연간 보고서 · US GAAP · 9월 결산") */
+  basis: string;
+  /** 미국 기업은 연결/별도 구분이 없어 CFS */
   fs: "CFS" | "OFS";
   /** ISO 시각 */
   generatedAt: string;

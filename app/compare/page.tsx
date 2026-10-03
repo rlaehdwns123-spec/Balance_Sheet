@@ -15,8 +15,12 @@ import { getRecentAnnualReports } from "@/lib/dart/client";
 import { loadCorps } from "@/lib/dart/corpList";
 import { isDartError } from "@/lib/dart/errors";
 import type { FsDiv } from "@/lib/dart/types";
-import { buildStandardYears } from "@/lib/normalize";
+import { marketOfCode } from "@/lib/market";
+import { buildStandardYears, type StandardAccounts } from "@/lib/normalize";
 import { computeRatios } from "@/lib/ratios";
+import { getUsStandard } from "@/lib/sec/company";
+import { loadUsCorps } from "@/lib/sec/corpList";
+import { isSecError } from "@/lib/sec/errors";
 import { parseStatementParams } from "@/lib/statementParams";
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -34,11 +38,21 @@ export default async function ComparePage({ searchParams }: Props) {
   const { fs } = parseStatementParams((k) => (typeof sp[k] === "string" ? (sp[k] as string) : null));
 
   // 회사명은 로컬 목록에서 (API 호출 없이). 목록에 없는 코드는 제외
-  const corpList = await loadCorps().catch(() => []);
-  const selected: CompareCorp[] = codes.flatMap((code) => {
+  const hasUs = codes.some((code) => marketOfCode(code) === "us");
+  const [corpList, usList] = await Promise.all([
+    loadCorps().catch(() => []),
+    hasUs ? loadUsCorps().catch(() => []) : Promise.resolve([]),
+  ]);
+  const selected: CompareCorp[] = codes.flatMap((code): CompareCorp[] => {
+    if (marketOfCode(code) === "us") {
+      const corp = usList.find((c) => c.cik === code);
+      return corp ? [{ corpCode: code, name: corp.name, stockCode: corp.ticker, market: "us" }] : [];
+    }
     const corp = corpList.find((c) => c.corp_code === code);
-    return corp ? [{ corpCode: code, name: corp.corp_name, stockCode: corp.stock_code }] : [];
+    return corp ? [{ corpCode: code, name: corp.corp_name, stockCode: corp.stock_code, market: "kr" }] : [];
   });
+  // 연결/별도는 한국 기업에만 해당
+  const hasKr = selected.some((c) => c.market === "kr");
 
   return (
     <div className="space-y-4">
@@ -54,7 +68,7 @@ export default async function ComparePage({ searchParams }: Props) {
 
       {selected.length > 0 && (
         <>
-          <FsToggle />
+          {hasKr && <FsToggle />}
           {/* 회사 구성이나 연결/별도가 바뀌면 비교 영역만 스켈레톤으로 */}
           <Suspense key={`${selected.map((c) => c.corpCode).join(",")}|${fs}`} fallback={<CompareSkeleton />}>
             <CompareData selected={selected} fs={fs} />
@@ -73,20 +87,51 @@ async function CompareData({ selected, fs }: { selected: CompareCorp[]; fs: FsDi
 
 const METRIC_KEYS = [...COMPARE_ACCOUNTS, ...COMPARE_RATIOS].map((m) => m.key);
 
+/** 표준 계정(표시 연도 + 1년) → 표시 연도별 비교 항목 값 */
+function compareYears(standard: StandardAccounts[]): CompareCompany["years"] {
+  // 비율의 평균잔액·증가율을 위해 1년 더 넣어 계산
+  const ratios = new Map(computeRatios(standard).map((r) => [r.year, r.values]));
+  return standard.slice(-DISPLAY_YEARS).map((y) => {
+    const merged: Record<string, number | null> = { ...y, ...ratios.get(y.year) };
+    return { year: y.year, values: Object.fromEntries(METRIC_KEYS.map((k) => [k, merged[k] ?? null])) };
+  });
+}
+
 async function loadCompany(corp: CompareCorp, fs: FsDiv): Promise<CompareCompany> {
+  const failed = (error: CompareCompany["error"]): CompareCompany => ({
+    ...corp,
+    years: [],
+    currency: null,
+    fiscalEndMonth: null,
+    ends: {},
+    error,
+  });
   try {
+    if (corp.market === "us") {
+      const std = await getUsStandard(corp.corpCode);
+      const endMonth = Number(std.periods[0]?.end.slice(5, 7));
+      return {
+        ...corp,
+        years: compareYears(std.years),
+        currency: std.currency,
+        fiscalEndMonth: endMonth && endMonth !== 12 ? endMonth : null,
+        ends: Object.fromEntries(std.periods.map((p) => [p.fiscalYear, p.end])),
+        error: null,
+      };
+    }
     const reports = await getRecentAnnualReports(corp.corpCode, fs);
-    // 비율의 평균잔액·증가율을 위해 1년 더 넣어 계산
-    const standard = buildStandardYears(reports, DISPLAY_YEARS + 1);
-    const ratios = new Map(computeRatios(standard).map((r) => [r.year, r.values]));
-    const years = standard.slice(-DISPLAY_YEARS).map((y) => {
-      const merged: Record<string, number | null> = { ...y, ...ratios.get(y.year) };
-      return { year: y.year, values: Object.fromEntries(METRIC_KEYS.map((k) => [k, merged[k] ?? null])) };
-    });
-    return { ...corp, years, error: null };
+    return {
+      ...corp,
+      years: compareYears(buildStandardYears(reports, DISPLAY_YEARS + 1)),
+      currency: "KRW",
+      fiscalEndMonth: null,
+      ends: {},
+      error: null,
+    };
   } catch (err) {
-    if (isDartError(err)) return { ...corp, years: [], error: { kind: err.kind, status: err.status, message: err.message } };
+    if (isDartError(err)) return failed({ kind: err.kind, status: err.status, message: err.message });
+    if (isSecError(err)) return failed({ kind: err.kind, status: `SEC ${err.kind}`, message: err.message });
     console.error(err);
-    return { ...corp, years: [], error: { kind: "UPSTREAM", status: "ERR", message: "불러오지 못했습니다." } };
+    return failed({ kind: "UPSTREAM", status: "ERR", message: "불러오지 못했습니다." });
   }
 }

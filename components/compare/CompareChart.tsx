@@ -19,7 +19,7 @@ import { useChartTheme } from "@/components/charts/theme";
 import Segmented from "@/components/Segmented";
 import { niceTicks } from "@/lib/chartTicks";
 import type { CompareCompany } from "@/lib/compare";
-import { formatAmount, formatRatio, formatWonCompact } from "@/lib/format";
+import { currencyName, formatAmount, formatRatio, formatWonCompact } from "@/lib/format";
 
 type Metric = "revenue" | "operatingMargin";
 
@@ -27,18 +27,23 @@ type Metric = "revenue" | "operatingMargin";
  * 회사별 매출(막대) 또는 영업이익률(선)을 한 차트에 겹쳐 본다.
  * 두 지표를 한 차트에 넣으면 이중축 + 계열 6개가 되어 전환형으로 나눴다.
  * colorIndex: 전체 비교 목록 순서 — 실패한 회사가 빠져도 나머지 색이 바뀌지 않게.
+ * currency: 회사들의 공통 통화. null이면(통화가 섞임) 매출액은 비교하지 않고 영업이익률만.
  */
 export default function CompareChart({
   companies,
   colorIndex,
   years,
+  currency = "KRW",
 }: {
   companies: CompareCompany[];
   colorIndex: string[];
   years: number[];
+  currency?: string | null;
 }) {
   const theme = useChartTheme();
-  const [metric, setMetric] = useState<Metric>("revenue");
+  const [picked, setMetric] = useState<Metric>("revenue");
+  const metric: Metric = currency === null ? "operatingMargin" : picked;
+  const unitSuffix = !currency || currency === "KRW" ? "억" : `억 ${currencyName(currency)}`;
 
   const colorOf = (corpCode: string) => theme.series[colorIndex.indexOf(corpCode)];
   const valueOf = (c: CompareCompany, year: number) => c.years.find((y) => y.year === year)?.values[metric] ?? null;
@@ -49,7 +54,7 @@ export default function CompareChart({
   const axis = niceTicks(companies.flatMap((c) => years.map((y) => valueOf(c, y))).filter((v) => v != null));
   const step = axis.ticks[1] - axis.ticks[0];
   const format = (v: number | null) =>
-    metric === "revenue" ? (v == null ? "–" : `${formatAmount(v, "eok").text}억`) : formatRatio(v, "percent");
+    metric === "revenue" ? (v == null ? "–" : `${formatAmount(v, "eok").text}${unitSuffix}`) : formatRatio(v, "percent");
 
   const axisTick = { fill: theme.muted, fontSize: 11 };
   const common = {
@@ -97,16 +102,18 @@ export default function CompareChart({
 
   return (
     <div>
-      <Segmented
-        label="비교 지표"
-        className="mb-3 w-fit"
-        value={metric}
-        onChange={setMetric}
-        options={[
-          { value: "revenue", label: "매출액" },
-          { value: "operatingMargin", label: "영업이익률" },
-        ]}
-      />
+      {currency !== null && (
+        <Segmented
+          label="비교 지표"
+          className="mb-3 w-fit"
+          value={metric}
+          onChange={setMetric}
+          options={[
+            { value: "revenue", label: "매출액" },
+            { value: "operatingMargin", label: "영업이익률" },
+          ]}
+        />
+      )}
       {companies.length === 0 ? (
         <p className="py-10 text-center text-sm text-neutral-500">표시할 데이터가 없습니다.</p>
       ) : (

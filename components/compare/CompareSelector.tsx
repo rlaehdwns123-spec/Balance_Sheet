@@ -5,14 +5,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useChartTheme } from "@/components/charts/theme";
 import CorpSearch from "@/components/CorpSearch";
+import Segmented from "@/components/Segmented";
 import { MAX_COMPARE, type CompareCorp } from "@/lib/compare";
+import { companyPath, type Market } from "@/lib/market";
 
-/** 비교 대상 칩 + 추가 검색. 상태는 URL(?corps=a,b,c)에만 둔다 */
+/** 비교 대상 칩 + 추가 검색(한국·미국). 상태는 URL(?corps=a,b,c)에만 둔다 — 8자리 한국, 10자리 미국 */
 export default function CompareSelector({ selected }: { selected: CompareCorp[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const theme = useChartTheme();
   const [adding, setAdding] = useState(selected.length === 0);
+  const [market, setMarket] = useState<Market>("kr");
 
   const codes = selected.map((c) => c.corpCode);
   const full = codes.length >= MAX_COMPARE;
@@ -34,7 +37,7 @@ export default function CompareSelector({ selected }: { selected: CompareCorp[] 
             className="flex items-center gap-2 rounded-full border border-neutral-200 py-1 pr-1 pl-3 text-sm dark:border-neutral-700"
           >
             <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: theme.series[i] }} />
-            <Link href={`/company/${corp.corpCode}`} className="max-w-36 truncate font-medium hover:underline">
+            <Link href={companyPath(corp.corpCode, corp.market)} className="max-w-36 truncate font-medium hover:underline">
               {corp.name}
             </Link>
             <button
@@ -66,16 +69,35 @@ export default function CompareSelector({ selected }: { selected: CompareCorp[] 
         <p className="text-xs text-neutral-500 dark:text-neutral-400">최대 {MAX_COMPARE}개사까지 비교할 수 있습니다.</p>
       ) : (
         adding && (
-          <CorpSearch
-            autoFocus={selected.length > 0}
-            exclude={codes}
-            placeholder={`비교할 회사 검색 (${codes.length}/${MAX_COMPARE})`}
-            onSelect={(corp) => {
-              const next = [...codes, corp.corp_code];
-              if (next.length >= MAX_COMPARE) setAdding(false);
-              router.push(hrefFor(next), { scroll: false });
-            }}
-          />
+          <div className="space-y-2">
+            <Segmented
+              label="검색할 시장"
+              value={market}
+              className="w-fit"
+              onChange={setMarket}
+              options={[
+                { value: "kr", label: "한국" },
+                { value: "us", label: "미국" },
+              ]}
+            />
+            {/* 시장을 바꾸면 검색어·결과를 비운다 */}
+            <CorpSearch
+              key={market}
+              market={market}
+              autoFocus={selected.length > 0}
+              exclude={codes}
+              placeholder={
+                market === "us"
+                  ? `비교할 미국 회사 — 티커·영문명 (${codes.length}/${MAX_COMPARE})`
+                  : `비교할 회사 검색 (${codes.length}/${MAX_COMPARE})`
+              }
+              onSelect={(item) => {
+                const next = [...codes, item.code];
+                if (next.length >= MAX_COMPARE) setAdding(false);
+                router.push(hrefFor(next), { scroll: false });
+              }}
+            />
+          </div>
         )
       )}
     </div>

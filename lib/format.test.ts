@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAmount, formatChange, formatRatio, formatRatioDelta, formatWonCompact } from "./format";
+import { formatAmount, formatChange, formatMoneyCompact, formatRatio, formatRatioDelta, formatWonCompact } from "./format";
 
 describe("formatWonCompact", () => {
   it("1조 이상은 조, 미만은 억", () => {
@@ -97,5 +97,14 @@ describe("formatChange", () => {
     expect(formatChange(10, -5, true)).toEqual({ direction: "up", text: "흑자전환" });
     expect(formatChange(-10, 5, true)).toEqual({ direction: "down", text: "적자전환" });
     expect(formatChange(-10, -5, true)).toEqual({ direction: "none", text: "적자지속" });
+  });
+});
+
+describe("formatMoneyCompact", () => {
+  it("원화는 기존 표기, 그 밖은 통화 이름을 붙인다", () => {
+    expect(formatMoneyCompact(3.4e11)).toBe("3,400억");
+    expect(formatMoneyCompact(1.33e11, "USD")).toBe("1,330억 달러");
+    expect(formatMoneyCompact(-2.5e12, "TWD")).toBe("-2.5조 대만달러");
+    expect(formatMoneyCompact(1e9, "XYZ")).toBe("10억 XYZ");
   });
 });

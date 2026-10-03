@@ -1,6 +1,6 @@
 import type { Workbook, Worksheet } from "exceljs";
 import { AREA_LABEL, DUPONT_LABEL, type Analysis } from "@/lib/analysis";
-import type { MetricUnit } from "@/lib/format";
+import { currencyName, type MetricUnit } from "@/lib/format";
 import type { ExportPayload } from "./payload";
 
 /** 엑셀 숫자 서식 (값은 원 단위·소수 비율 그대로 넣고 서식으로 보여 준다) */
@@ -23,12 +23,15 @@ const GRADE_LABEL = { good: "양호", neutral: "보통", caution: "주의", na: 
 /** 시트 맨 위 제목 두 줄 */
 function title(ws: Worksheet, p: ExportPayload, heading: string, note: string) {
   ws.addRow([`${p.company.name} (${p.company.stockCode}) — ${heading}`]).font = { bold: true, size: 13 };
-  ws.addRow([`${p.fs === "CFS" ? "연결" : "별도"} · DART 사업보고서 · ${note} · ${p.generatedAt.slice(0, 10)} 기준`]).font = {
+  ws.addRow([`${p.basis} · ${note} · ${p.generatedAt.slice(0, 10)} 기준`]).font = {
     color: { argb: "FF6B7280" },
     size: 9,
   };
   ws.addRow([]);
 }
+
+/** 금액 단위 안내: 원화는 기존 문구, 그 밖은 "단위: 달러(USD)" */
+const unitNote = (p: ExportPayload) => (p.currency === "KRW" ? "단위: 원" : `단위: ${currencyName(p.currency)}(${p.currency})`);
 
 function header(ws: Worksheet, cells: (string | number)[]) {
   const row = ws.addRow(cells);
@@ -42,7 +45,7 @@ function header(ws: Worksheet, cells: (string | number)[]) {
 
 function statementSheet(wb: Workbook, p: ExportPayload, s: ExportPayload["statements"][number]) {
   const ws = wb.addWorksheet(s.title, { views: [{ state: "frozen", xSplit: 1, ySplit: 4 }] });
-  title(ws, p, s.title, "단위: 원 (주당이익은 원)");
+  title(ws, p, s.title, p.currency === "KRW" ? "단위: 원 (주당이익은 원)" : unitNote(p));
   header(ws, ["계정", ...s.years]);
   for (const r of s.rows) {
     const row = ws.addRow([r.label, ...r.values]);
@@ -60,7 +63,7 @@ function statementSheet(wb: Workbook, p: ExportPayload, s: ExportPayload["statem
 function ratioSheet(wb: Workbook, p: ExportPayload) {
   const { years, rows } = p.ratios;
   const ws = wb.addWorksheet("재무비율", { views: [{ state: "frozen", xSplit: 2, ySplit: 4 }] });
-  title(ws, p, "재무비율", "평균잔액 = (전기말 + 당기말) ÷ 2");
+  title(ws, p, "재무비율", `평균잔액 = (전기말 + 당기말) ÷ 2${p.currency === "KRW" ? "" : ` · 순차입금 ${unitNote(p)}`}`);
   header(ws, ["구분", "비율", ...years, "계산식"]);
   for (const r of rows) {
     const row = ws.addRow([r.category, r.label, ...r.values, r.formula]);
@@ -110,7 +113,7 @@ function analysisSheet(wb: Workbook, p: ExportPayload) {
     [`${DUPONT_LABEL.leverage} (평균 자산 ÷ 평균 자본)`, a.dupont.years.map((y) => y.leverage), NUM_FMT.multiple],
   ]);
 
-  block(ws, "현금흐름 품질", a.years, [
+  block(ws, p.currency === "KRW" ? "현금흐름 품질" : `현금흐름 품질 (${unitNote(p)})`, a.years, [
     ["당기순이익", a.cash.map((c) => c.netIncome), NUM_FMT.amount],
     ["영업활동현금흐름", a.cash.map((c) => c.operatingCashFlow), NUM_FMT.amount],
     ["영업현금흐름 ÷ 순이익", a.cash.map((c) => c.cashConversion), NUM_FMT.multiple],
@@ -143,4 +146,4 @@ export function buildWorkbook(WorkbookClass: new () => Workbook, p: ExportPayloa
 }
 
 export const exportFileName = (p: ExportPayload) =>
-  `${p.company.name}_${p.fs === "CFS" ? "연결" : "별도"}_재무분석_${p.generatedAt.slice(0, 10)}.xlsx`.replace(/[\\/:*?"<>|]/g, "_");
+  `${p.company.name}${p.market === "us" ? "" : `_${p.fs === "CFS" ? "연결" : "별도"}`}_재무분석_${p.generatedAt.slice(0, 10)}.xlsx`.replace(/[\\/:*?"<>|]/g, "_");

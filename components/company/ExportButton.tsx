@@ -3,9 +3,13 @@
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import type { ExportPayload } from "@/lib/export/payload";
+import type { Market } from "@/lib/market";
 
-/** 재무제표·비율·분석을 시트별로 담은 .xlsx 다운로드. exceljs는 눌렀을 때만 불러온다 */
-export default function ExportButton({ corpCode }: { corpCode: string }) {
+/**
+ * 재무제표·비율·분석을 시트별로 담은 .xlsx 다운로드. exceljs는 눌렀을 때만 불러온다.
+ * 미국 기업(corpCode = 10자리 CIK)은 연결/별도 구분이 없다.
+ */
+export default function ExportButton({ corpCode, market = "kr" }: { corpCode: string; market?: Market }) {
   const fs = useSearchParams().get("fs") === "OFS" ? "OFS" : "CFS";
   const [state, setState] = useState<"idle" | "busy" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -52,7 +56,7 @@ export default function ExportButton({ corpCode }: { corpCode: string }) {
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M10 3v10M6 9l4 4 4-4M4 16h12" />
         </svg>
-        {state === "busy" ? "만드는 중…" : `엑셀 (${fs === "CFS" ? "연결" : "별도"})`}
+        {state === "busy" ? "만드는 중…" : market === "us" ? "엑셀" : `엑셀 (${fs === "CFS" ? "연결" : "별도"})`}
       </button>
       {state === "error" && (
         <span role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">

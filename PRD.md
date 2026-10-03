@@ -245,3 +245,68 @@ ROE = 순이익률(당기순이익 ÷ 매출액) × 총자산회전율(매출액
 ## 기술 스택
 
 <!-- TODO: 원문에서 이 섹션 내용이 비어 있음 — 작성 필요 -->
+
+# v1.2 미국 상장 기업 (SEC EDGAR, 무료·인증키 없음)
+
+## 범위
+- 미국 상장사와 미국에 상장한 해외 기업(20-F, 40-F 제출 기업)
+- 연간 데이터만. 분기, 일본·유럽, 주가는 범위 밖
+- 환경변수 SEC_USER_AGENT (앱 이름과 연락처). 모든 SEC 요청 헤더에 넣는다
+- 호출 한도와 헤더 규칙은 SEC 개발자 안내에서 확인 후 구현
+
+## 사용하는 API
+- 종목 목록: https://www.sec.gov/files/company_tickers.json (ticker, CIK, 회사명)
+- 기업 정보와 제출 목록: https://data.sec.gov/submissions/CIK{10자리}.json
+- 재무 데이터: https://data.sec.gov/api/xbrl/companyfacts/CIK{10자리}.json
+  구조: facts → 분류체계(us-gaap 또는 ifrs-full) → 태그 → label, units → 통화별 값 목록(start, end, val, form, fp, filed)
+
+## 데이터 정리 규칙 (lib/sec)
+- 연간 값만 사용: form이 10-K, 20-F, 40-F(정정본 포함)이고 손익·현금흐름은 기간이 약 1년인 값
+- 회계연도는 fy 필드가 아니라 end 날짜로 판단한다(fy는 제출 보고서 기준이라 비교 수치에도 같은 값이 붙음)
+  - 같은 기말일끼리 묶는 건 end로 하되, 연도 표기는 그 기간을 당기로 처음 보고한 연간 보고서의 fy(회사가 부르는 회계연도)
+  - 1월 결산 회사도 엔비디아·월마트는 끝난 해(2026년 1월 → FY2026), 타깃은 시작한 해(→ FY2025)로 불러 날짜만으로는 정할 수 없음
+  - fy가 없거나 기말일의 해·전년이 아니면 기말일의 해(1월 첫 주에 끝나는 52·53주 회계연도는 전년)
+- 같은 기간에 값이 여럿이면 filed가 가장 늦은 것
+- 보고 통화: 자산총계 값이 가장 많은 통화 단위를 그 회사의 보고 통화로 본다
+- 최근 5개 회계연도
+
+## 표준 계정 매핑 (lib/normalize/sec)
+기존 표준 계정 객체와 같은 형태로 만든다. 태그는 우선순위 순으로 찾고, 연도마다 따로 판단한다.
+- us-gaap
+  - 매출액: Revenues, RevenueFromContractWithCustomerExcludingAssessedTax, RevenueFromContractWithCustomerIncludingAssessedTax, SalesRevenueNet
+  - 매출원가: CostOfRevenue, CostOfGoodsAndServicesSold / 매출총이익: GrossProfit
+  - 영업이익: OperatingIncomeLoss / 당기순이익: NetIncomeLoss, ProfitLoss
+  - 자산총계: Assets / 유동자산: AssetsCurrent
+  - 부채총계: Liabilities, 없으면 LiabilitiesAndStockholdersEquity − 자본총계
+  - 유동부채: LiabilitiesCurrent
+  - 자본총계: StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest, StockholdersEquity
+  - 현금: CashAndCashEquivalentsAtCarryingValue / 매출채권: AccountsReceivableNetCurrent / 재고: InventoryNet
+  - 이자비용: InterestExpense, InterestExpenseNonoperating, InterestExpenseDebt (2023년 무렵부터 Nonoperating으로 바꾼 회사가 많음)
+  - 영업·투자·재무 CF: NetCashProvidedByUsedInOperatingActivities, …InInvestingActivities, …InFinancingActivities
+  - 유형자산 취득: PaymentsToAcquirePropertyPlantAndEquipment
+  - 비율 계산용 보충: 지배주주순이익 NetIncomeLoss / 지배주주지분 StockholdersEquity / 매입채무 AccountsPayableCurrent / 단기차입금 ShortTermBorrowings, CommercialPaper / 유동성장기부채 LongTermDebtCurrent / 장기차입금 LongTermDebtNoncurrent / 자본금 CommonStockValue / 이익잉여금 RetainedEarningsAccumulatedDeficit. 금융비용·사채는 없음(null)
+- ifrs-full: 기존 DART 매핑의 account_id에서 "ifrs-full_" 접두사를 뺀 태그명을 재사용
+  - DART 전용 ID만 있는 영업이익(dart_OperatingIncomeLoss)은 ProfitLossFromOperatingActivities
+- 매핑 실패는 null, UI에 "-"
+
+## 화면 규칙
+- 검색: 시장 구분(한국/미국) 탭. 미국은 티커와 영문 회사명으로 검색
+- 경로: /company/us/[cik]
+- 재무제표 탭: 표준 순서로 배열, 계정명은 SEC label 원문. 표준 계정에는 한글 병기(토글)
+  - 계정명은 최신 연도에 쓴 태그의 label. ifrs-full 태그는 SEC label이 비어 있어 태그 이름을 단어로 나눠 쓴다
+  - 5개년 모두 값이 없는 계정은 행을 뺀다. 지배주주순이익·지배주주지분이 상위 행과 같은 태그면 중복이라 뺀다
+  - 열 아래에 기말일(25.09.27)을 적는다 (12월 결산이 아닌 회사가 많음)
+- 금액 단위: 보고 통화의 백만 단위. 통화를 헤더에 표시
+- 비율·분석·차트·위험 신호: 기존 lib/ratios, lib/analysis 재사용, 한글 지표명 유지
+- 미국 기업에서 숨길 것: 배당 탭, 감사의견, 연결/별도 토글
+- 공시: submissions의 최근 보고서 목록, 누르면 SEC 원문으로
+  - 유형: 주요(10-K·10-Q·8-K·20-F·40-F·6-K와 정정본, 기본) / 연간 / 분기 / 수시 / 전체. 20건씩
+  - 캐시 한도 때문에 주요 보고서 외 서류는 최근 1,000건만 보관 (금융사는 1년에 투자설명서가 수만 건)
+- 숨기는 탭: 분기(연간 데이터만). 위험 신호의 감사의견 항목, 업종 비교도 뺀다
+- 억·조로 줄인 금액(분석·차트·위험 신호 근거)은 통화 이름을 붙인다 ("1,330억 달러")
+- 최근 본 기업·관심기업에 미국 기업도 저장(market: "us"). 관심기업의 "비교"는 한국 기업만 (한·미 비교는 다음 단계)
+- 비교: 한·미 기업을 섞을 수 있다. 통화가 다르면 금액 차트는 숨기고 비율만 비교하며, 그 이유를 표시
+  - 주소 ?corps=는 8자리(한국 고유번호)·10자리(미국 CIK)를 섞어 쓴다. 회사 추가 검색에 한국/미국 선택
+  - 통화가 같으면(미국끼리 등) 금액도 비교, 단위는 "억 달러". 환율 환산은 하지 않는다
+  - 결산월이 12월이 아닌 회사는 기준 연도가 실제로 언제 끝난 회계연도인지 함께 적는다
+- 엑셀 내보내기: 미국 기업도 같은 시트 구성. 시트 머리에 통화·단위(달러(USD) 1단위 값)와 회계기준·결산월, 계정명은 SEC 원문(한글)

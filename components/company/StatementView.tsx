@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Fragment } from "react";
 import Segmented from "@/components/Segmented";
-import { formatAmount, formatChange, formatRatio, formatRatioDelta, UNIT_LABEL } from "@/lib/format";
+import { currencyName, formatAmount, formatChange, formatRatio, formatRatioDelta, UNIT_LABEL } from "@/lib/format";
 import { INTERIM_NAME, QUARTER_OF, type InterimRef } from "@/lib/interim";
 import type { Section, StatementKind, StatementRow, StatementTable } from "@/lib/normalize/statement";
 import { interimKey, type IncomeBasis, type IncomeView } from "@/lib/statementParams";
@@ -62,6 +62,9 @@ function shareOf(value: number | null, base: number | null | undefined, perShare
   return value / base;
 }
 
+const US_NOTE =
+  "SEC XBRL 재무 데이터에서 표준 계정만 골라 정해진 순서로 보여 줍니다. 계정명은 SEC 데이터의 원문(IFRS 회사는 태그 이름)이며, 전체 재무제표는 공시 탭의 연간 보고서 원문에 있습니다.";
+
 const CLASSIC_NOTE =
   "기존 K-IFRS 양식 순서(영업이익 → 기타수익·비용 → 금융손익 → 법인세차감전이익)로 범주 구분 없이 보여 줍니다.";
 
@@ -71,11 +74,23 @@ const TIER_CLASS: Record<StatementRow["tier"], string> = {
   item: "font-normal text-neutral-600 dark:text-neutral-400",
 };
 
-export default function StatementView({ tables, interim }: { tables: StatementTables; interim?: InterimInfo }) {
-  const { fs, sj, unit, isv, acc, vw, replace, hrefWith } = useStatementParams();
+/**
+ * @param us 미국 기업: 금액은 보고 통화 백만 단위 고정, 손익계산서 양식 선택·범주 없음, 계정명 한글 병기
+ */
+export default function StatementView({
+  tables,
+  interim,
+  us,
+}: {
+  tables: StatementTables;
+  interim?: InterimInfo;
+  us?: { currency: string };
+}) {
+  const { fs, sj, unit: unitParam, isv, acc, vw, lbl, replace, hrefWith } = useStatementParams();
   const router = useRouter();
+  const unit = us ? "mil" : unitParam;
   const table = sj === "IS" ? tables.IS[isv][acc] : tables[sj];
-  const classic = sj === "IS" && isv === "classic";
+  const classic = sj === "IS" && (isv === "classic" || !!us);
   const headerSections = classic ? [] : HEADER_SECTIONS[sj];
   // 1분기는 3개월 = 누적이라 기준 선택이 필요 없음
   const showBasis = sj === "IS" && !!interim && QUARTER_OF[interim.current.code] > 1;
@@ -87,7 +102,7 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
 
   return (
     <div>
-      {(interim || sj === "IS") && (
+      {(interim || (sj === "IS" && !us)) && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {interim && (
             <label className="flex items-center gap-2 text-sm">
@@ -132,8 +147,13 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
       )}
 
       <p className="mb-2 text-xs text-neutral-600 dark:text-neutral-400">
-        {pct ? `${BASE_LABEL[sj]} 대비 비중(%)` : `단위: ${UNIT_LABEL[unit]}`} · {fs === "CFS" ? "연결" : "별도"} ·{" "}
-        {interim ? `${interimLabel(interim.current)}보고서 기준 · 전년 동기 대비` : "사업보고서 기준"}
+        {pct
+          ? `${BASE_LABEL[sj]} 대비 비중(%)`
+          : us
+            ? `단위: 백만 ${currencyName(us.currency)} (${us.currency})`
+            : `단위: ${UNIT_LABEL[unit]}`}{" "}
+        · {us ? "연간 보고서(10-K·20-F·40-F) 기준" : fs === "CFS" ? "연결" : "별도"}
+        {!us && <> · {interim ? `${interimLabel(interim.current)}보고서 기준 · 전년 동기 대비` : "사업보고서 기준"}</>}
         {sj === "IS" && table.source === "CIS" && " · 포괄손익계산서"}
         {!pct && table.rows.some((r) => r.perShare) && " · 주당이익은 원"}
       </p>
@@ -205,6 +225,9 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
                         className="fs-cell fs-sticky sticky left-0 z-10 w-36 min-w-36 border-b border-neutral-100 py-2 pr-2 text-left leading-snug [font-weight:inherit] break-keep [overflow-wrap:anywhere] dark:border-neutral-900"
                       >
                         {row.label}
+                        {us && lbl === "both" && row.labelKo && (
+                          <span className="mt-0.5 block text-[11px] font-normal text-neutral-500 dark:text-neutral-400">{row.labelKo}</span>
+                        )}
                       </th>
                       {row.values.map((v, i) => {
                         const { text, negative } = pct ? shareCell(shareOf(v, base?.[i], row.perShare)) : formatAmount(v, unit, row.perShare);
@@ -244,7 +267,8 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
             : `${BASE_LABEL[sj]} 행을 찾지 못해 비중을 계산할 수 없습니다.`}
         </p>
       )}
-      {sj === "IS" && table.rows.length > 0 && (
+      {us && table.rows.length > 0 && <p className="mt-3 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">{US_NOTE}</p>}
+      {sj === "IS" && !us && table.rows.length > 0 && (
         <p className="mt-3 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
           {classic ? CLASSIC_NOTE : INCOME_NOTE[table.format]}
         </p>

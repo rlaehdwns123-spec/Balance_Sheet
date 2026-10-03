@@ -33,7 +33,7 @@ const T = {
   receivableGap: 0.2,
 } as const;
 
-const won = (v: number) => formatWonCompact(v, 1e11);
+const defaultMoney = (v: number) => formatWonCompact(v, 1e11);
 const pct = (v: number) => formatRatio(v, "percent");
 const pp = (v: number) => formatRatio(v, "percent").replace("%", "%p");
 
@@ -43,8 +43,15 @@ export const isCleanOpinion = (opinion: string) => opinion.replace(/\s/g, "").st
 /**
  * @param standard 연도 오름차순 표준 계정 (증가율·연속 적자를 위해 이전 연도 포함)
  * @param audit 최신 연도 감사의견 (없으면 감사의견 항목은 확인 불가)
+ * @param options.money 근거 수치의 금액 표기 (기본: "3,400억" 원화 표기, 미국 기업은 통화를 붙인다)
+ * @param options.skip 점검하지 않을 항목 (미국 기업의 감사의견 등)
  */
-export function riskChecks(standard: StandardAccounts[], audit: AuditInput): RiskCheck[] {
+export function riskChecks(
+  standard: StandardAccounts[],
+  audit: AuditInput,
+  options: { money?: (v: number) => string; skip?: string[] } = {},
+): RiskCheck[] {
+  const won = options.money ?? defaultMoney;
   const sorted = [...standard].sort((a, b) => a.year - b.year);
   const cur = sorted.at(-1);
   if (!cur) return [];
@@ -194,5 +201,5 @@ export function riskChecks(standard: StandardAccounts[], audit: AuditInput): Ris
       );
   }
 
-  return checks;
+  return options.skip ? checks.filter((c) => !options.skip!.includes(c.key)) : checks;
 }

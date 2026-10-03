@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { companyPath } from "@/lib/market";
 import { readWatchlist, removeWatch, subscribeWatchlist, type WatchCorp } from "@/lib/watchlist";
 
 /** 관심기업 목록 (최근 추가 순). 비어 있으면 안내 */
@@ -50,7 +51,7 @@ export default function WatchlistView() {
         {items.map((c) => (
           <li key={c.corpCode} className="flex items-center">
             <Link
-              href={`/company/${c.corpCode}`}
+              href={companyPath(c.corpCode, c.market)}
               className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 hover:bg-neutral-50 active:bg-neutral-100 dark:hover:bg-neutral-900 dark:active:bg-neutral-800"
             >
               <span className="flex min-w-0 items-center gap-2">

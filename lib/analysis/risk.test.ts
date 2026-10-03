@@ -116,3 +116,12 @@ describe("isCleanOpinion", () => {
     expect(isCleanOpinion("의견거절")).toBe(false);
   });
 });
+
+describe("riskChecks options (미국 기업)", () => {
+  it("금액 표기를 바꾸고 지정한 항목을 뺀다", () => {
+    const years = [2024, 2025].map((year) => accounts(year, { operatingIncome: 1.33e11 }));
+    const checks = riskChecks(years, null, { money: (v) => `${v / 1e8}억 달러`, skip: ["audit"] });
+    expect(checks.some((c) => c.key === "audit")).toBe(false);
+    expect(checks.find((c) => c.key === "operatingLoss")?.evidence).toBe("2025년 영업이익 1330억 달러");
+  });
+});

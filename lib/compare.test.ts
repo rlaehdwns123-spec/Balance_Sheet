@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maxIndices, parseCorpList, pickDefaultYear } from "./compare";
+import { compareCurrency, maxIndices, parseCorpList, pickDefaultYear } from "./compare";
 
 describe("parseCorpList", () => {
   it("8자리 코드만, 중복 제거, 최대 3개, 순서 유지", () => {
@@ -8,6 +8,10 @@ describe("parseCorpList", () => {
       "00164779",
       "00266961",
     ]);
+  });
+
+  it("미국 CIK(10자리)도 섞을 수 있다", () => {
+    expect(parseCorpList("00126380,0000320193,123456789,0001046179")).toEqual(["00126380", "0000320193", "0001046179"]);
   });
 
   it("공백·빈 값·배열 파라미터", () => {
@@ -51,5 +55,16 @@ describe("pickDefaultYear", () => {
   it("공통 연도가 없으면 전체 중 최근, 아무것도 없으면 null", () => {
     expect(pickDefaultYear([[2019, 2020], [2024, 2025]])).toBe(2025);
     expect(pickDefaultYear([[], []])).toBeNull();
+  });
+});
+
+describe("compareCurrency", () => {
+  it("통화가 하나면 금액 비교 가능, 여럿이면 mixed (실패한 회사는 제외)", () => {
+    expect(compareCurrency([{ currency: "KRW" }, { currency: "KRW" }])).toEqual({ currencies: ["KRW"], mixed: false });
+    expect(compareCurrency([{ currency: "KRW" }, { currency: "USD" }, { currency: "TWD" }])).toEqual({
+      currencies: ["KRW", "USD", "TWD"],
+      mixed: true,
+    });
+    expect(compareCurrency([{ currency: "USD" }, { currency: null }])).toEqual({ currencies: ["USD"], mixed: false });
   });
 });

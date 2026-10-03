@@ -18,6 +18,8 @@ export type Section = "operating" | "investing" | "financing" | "assets" | "liab
 export type StatementRow = {
   key: string;
   label: string;
+  /** 한글 병기용 표준 계정명 (미국 기업: label은 SEC 원문) */
+  labelKo?: string;
   /** 들여쓰기 깊이 (0 = 최상위) */
   level: number;
   tier: RowTier;

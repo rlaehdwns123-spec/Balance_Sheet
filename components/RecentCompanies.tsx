@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { companyPath } from "@/lib/market";
 import { clearRecent, readRecent, removeRecent, subscribeRecent, type RecentCorp } from "@/lib/recent";
 
 /**
@@ -38,7 +39,7 @@ export default function RecentCompanies({ title = "최근 본 기업", section }
         {items.map((c) => (
           <li key={c.corpCode} className="flex items-center">
             <Link
-              href={`/company/${c.corpCode}${section ? `/${section}` : ""}`}
+              href={companyPath(c.corpCode, c.market, section)}
               className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 hover:bg-neutral-50 active:bg-neutral-100 dark:hover:bg-neutral-900 dark:active:bg-neutral-800"
             >
               <span className="truncate font-medium">{c.name}</span>

@@ -2,16 +2,17 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import Segmented from "@/components/Segmented";
+import { companyPath, type Market } from "@/lib/market";
 import FsToggle from "./FsToggle";
 
 type View = "ratios" | "analysis" | "charts";
 
-/** 비율·분석 탭 안의 하위 화면 선택(비율 / 분석 / 차트) + 연결·별도 */
-export default function RatioSubNav({ corpCode }: { corpCode: string }) {
+/** 비율·분석 탭 안의 하위 화면 선택(비율 / 분석 / 차트) + 연결·별도 (미국 기업은 연결/별도 없음) */
+export default function RatioSubNav({ corpCode, market = "kr" }: { corpCode: string; market?: Market }) {
   const pathname = usePathname();
   const fs = useSearchParams().get("fs");
-  const query = fs ? `?fs=${fs}` : "";
-  const base = `/company/${corpCode}`;
+  const query = fs && market === "kr" ? `?fs=${fs}` : "";
+  const base = companyPath(corpCode, market);
   const current: View = pathname.startsWith(`${base}/analysis`) ? "analysis" : pathname.startsWith(`${base}/charts`) ? "charts" : "ratios";
 
   return (
@@ -25,7 +26,7 @@ export default function RatioSubNav({ corpCode }: { corpCode: string }) {
           { value: "charts", label: "차트", href: `${base}/charts${query}` },
         ]}
       />
-      <FsToggle />
+      {market === "kr" && <FsToggle />}
     </div>
   );
 }

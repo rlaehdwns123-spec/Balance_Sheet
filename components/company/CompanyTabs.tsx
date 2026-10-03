@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { companyPath, type Market } from "@/lib/market";
 
 /**
  * 재무제표 / 비율·분석 / 분기 / 배당·공시 탭. 연결·별도(fs) 선택은 탭을 옮겨도 유지.
  * 비율·분석 탭은 비율·분석·차트 세 화면(하위 선택)을 묶는다.
+ * 미국 기업은 연간 데이터만 있고 배당·연결/별도가 없어 재무제표 / 비율·분석 / 공시.
  */
-export default function CompanyTabs({ corpCode }: { corpCode: string }) {
+export default function CompanyTabs({ corpCode, market = "kr" }: { corpCode: string; market?: Market }) {
   const pathname = usePathname();
   const fs = useSearchParams().get("fs");
-  const query = fs ? `?fs=${fs}` : "";
-  const base = `/company/${corpCode}`;
+  const query = fs && market === "kr" ? `?fs=${fs}` : "";
+  const base = companyPath(corpCode, market);
 
   const tabs = [
     { href: base, label: "재무제표", match: (p: string) => p === base },
@@ -20,8 +22,12 @@ export default function CompanyTabs({ corpCode }: { corpCode: string }) {
       label: "비율·분석",
       match: (p: string) => ["ratios", "analysis", "charts"].some((s) => p.startsWith(`${base}/${s}`)),
     },
-    { href: `${base}/quarterly`, label: "분기", match: (p: string) => p.startsWith(`${base}/quarterly`) },
-    { href: `${base}/disclosure`, label: "배당·공시", match: (p: string) => p.startsWith(`${base}/disclosure`) },
+    ...(market === "kr"
+      ? [
+          { href: `${base}/quarterly`, label: "분기", match: (p: string) => p.startsWith(`${base}/quarterly`) },
+          { href: `${base}/disclosure`, label: "배당·공시", match: (p: string) => p.startsWith(`${base}/disclosure`) },
+        ]
+      : [{ href: `${base}/disclosure`, label: "공시", match: (p: string) => p.startsWith(`${base}/disclosure`) }]),
   ];
 
   return (

@@ -1,10 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Market } from "@/lib/market";
 import { readWatchlist, subscribeWatchlist, toggleWatch } from "@/lib/watchlist";
 
 /** 관심기업 별표 토글. 저장소를 쓸 수 없으면 눌렀을 때 안내 */
-export default function WatchStar({ corpCode, name, stockCode }: { corpCode: string; name: string; stockCode: string }) {
+export default function WatchStar({
+  corpCode,
+  name,
+  stockCode,
+  market,
+}: {
+  corpCode: string;
+  name: string;
+  stockCode: string;
+  /** 미국 기업이면 "us" (한국은 생략 — 예전 저장 형식과 같게) */
+  market?: Market;
+}) {
   // 서버 렌더와 일치시키기 위해 마운트 후에 읽는다
   const [on, setOn] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -22,7 +34,7 @@ export default function WatchStar({ corpCode, name, stockCode }: { corpCode: str
         aria-pressed={on}
         aria-label={on ? `${name} 관심기업에서 빼기` : `${name} 관심기업에 추가`}
         title={on ? "관심기업에서 빼기" : "관심기업에 추가"}
-        onClick={() => setFailed(!toggleWatch({ corpCode, name, stockCode }))}
+        onClick={() => setFailed(!toggleWatch({ corpCode, name, stockCode, ...(market ? { market } : {}) }))}
         className="flex h-9 w-9 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-amber-500 dark:hover:bg-neutral-800"
       >
         <svg

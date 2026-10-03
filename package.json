@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "build:corps": "tsx scripts/build-corp-list.ts",
     "vercel-build": "npm run build:corps -- --keep-on-error && next build",
-    "build:industries": "tsx scripts/build-industries.ts"
+    "build:industries": "tsx scripts/build-industries.ts",
+    "build:us-corps": "tsx scripts/build-us-corp-list.ts"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

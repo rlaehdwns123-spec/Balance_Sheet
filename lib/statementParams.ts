@@ -10,11 +10,13 @@ export type IncomeView = "ifrs18" | "classic";
 export type IncomeBasis = "q" | "cum";
 /** 값 표시: 금액 / 공통형 비중(손익은 매출액, 재무상태는 자산총계 대비 %) */
 export type ValueView = "amt" | "pct";
+/** 계정명 표시(미국 기업): SEC 원문 + 한글 병기 / 원문만 */
+export type LabelView = "both" | "en";
 
 /**
  * 재무제표 화면 URL 쿼리
  * - 데이터가 바뀌는 값(서버): fs=CFS|OFS, pd=A|Q, q=2026-11012 (분기 보고서 지정, 없으면 최신)
- * - 표시만 바뀌는 값(클라이언트): sj=BS|IS|CF, unit=eok|mil, isv=ifrs18|classic, acc=q|cum, vw=amt|pct
+ * - 표시만 바뀌는 값(클라이언트): sj=BS|IS|CF, unit=eok|mil, isv=ifrs18|classic, acc=q|cum, vw=amt|pct, lbl=both|en
  * pd=Q(분기·반기 보고서 재무제표)는 분기 탭의 "보고서별 재무제표" 보기에서 쓴다.
  */
 export type StatementParams = {
@@ -26,6 +28,7 @@ export type StatementParams = {
   isv: IncomeView;
   acc: IncomeBasis;
   vw: ValueView;
+  lbl: LabelView;
 };
 
 export function parseStatementParams(get: (key: string) => string | null | undefined): StatementParams {
@@ -40,6 +43,7 @@ export function parseStatementParams(get: (key: string) => string | null | undef
     isv: get("isv") === "classic" ? "classic" : "ifrs18",
     acc: get("acc") === "cum" ? "cum" : "q",
     vw: get("vw") === "pct" ? "pct" : "amt",
+    lbl: get("lbl") === "en" ? "en" : "both",
   };
 }
 

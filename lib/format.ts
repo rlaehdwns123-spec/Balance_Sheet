@@ -103,3 +103,34 @@ export function formatWonCompact(value: number, step = Infinity): string {
 
 const fixed = (n: number, digits: number) =>
   new Intl.NumberFormat("ko-KR", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+
+const CURRENCY_NAME: Record<string, string> = {
+  KRW: "원",
+  USD: "달러",
+  EUR: "유로",
+  JPY: "엔",
+  CNY: "위안",
+  TWD: "대만달러",
+  HKD: "홍콩달러",
+  GBP: "파운드",
+  CAD: "캐나다달러",
+  AUD: "호주달러",
+  CHF: "스위스프랑",
+  INR: "루피",
+  BRL: "헤알",
+  MXN: "멕시코페소",
+  SGD: "싱가포르달러",
+  ILS: "셰켈",
+  SEK: "크로나",
+  DKK: "덴마크크로네",
+  NOK: "노르웨이크로네",
+};
+
+/** 통화 코드 → 한글 이름 (USD → "달러"). 모르는 통화는 코드 그대로 */
+export const currencyName = (code: string) => CURRENCY_NAME[code] ?? code;
+
+/** 통화가 붙은 짧은 금액: KRW는 "3,400억"(기존 표기), 그 밖은 "1,330억 달러" */
+export function formatMoneyCompact(value: number, currency = "KRW", step = 1e11): string {
+  const text = formatWonCompact(value, step);
+  return currency === "KRW" ? text : `${text} ${currencyName(currency)}`;
+}

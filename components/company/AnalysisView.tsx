@@ -10,7 +10,8 @@ import {
   type Tone,
 } from "@/lib/analysis";
 import type { RiskCheck, RiskStatus } from "@/lib/analysis/risk";
-import { formatRatio, formatWonCompact } from "@/lib/format";
+import { currencyName, formatRatio, formatWonCompact } from "@/lib/format";
+import { companyPath } from "@/lib/market";
 
 const GRADE: Record<Grade, { label: string; className: string }> = {
   good: { label: "양호", className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200" },
@@ -35,26 +36,31 @@ export default function AnalysisView({
   fs,
   corpCode,
   industryName,
+  us,
 }: {
   analysis: Analysis;
   risks: RiskCheck[];
   fs: "CFS" | "OFS";
   corpCode: string;
   industryName: string | null;
+  /** 미국 기업: 기준 문구·링크를 바꾸고 업종 비교를 빼며, 금액 칸의 통화를 밝힌다 */
+  us?: { currency: string };
 }) {
   const { areas, latestYear } = analysis;
   const good = areas.filter((a) => a.grade === "good").map((a) => AREA_LABEL[a.area]);
   const caution = areas.filter((a) => a.grade === "caution").map((a) => AREA_LABEL[a.area]);
+  const ratiosHref = us ? companyPath(corpCode, "us", "ratios") : `/company/${corpCode}/ratios${fs === "OFS" ? "?fs=OFS" : ""}`;
 
   return (
     <div className="space-y-4">
       <div className="space-y-1 text-xs text-neutral-600 dark:text-neutral-400">
         <p>
-          {latestYear}년 기준 · {fs === "CFS" ? "연결" : "별도"} · 사업보고서 · 정해진 규칙에 따른 자동 진단이며 투자 권유가 아닙니다
+          {latestYear}년 기준 · {us ? "연간 보고서" : `${fs === "CFS" ? "연결" : "별도"} · 사업보고서`} · 정해진 규칙에 따른 자동 진단이며 투자
+          권유가 아닙니다
         </p>
         <p>
           근거 숫자는{" "}
-          <Link href={`/company/${corpCode}/ratios${fs === "OFS" ? "?fs=OFS" : ""}`} className="font-medium text-blue-700 underline dark:text-blue-400">
+          <Link href={ratiosHref} className="font-medium text-blue-700 underline dark:text-blue-400">
             비율 화면
           </Link>
           에서 볼 수 있습니다.
@@ -81,9 +87,9 @@ export default function AnalysisView({
       </section>
 
       <DupontSection analysis={analysis} />
-      <CashSection analysis={analysis} />
+      <CashSection analysis={analysis} currency={us?.currency} />
       <SignalsSection analysis={analysis} />
-      <IndustrySection analysis={analysis} industryName={industryName} />
+      {!us && <IndustrySection analysis={analysis} industryName={industryName} />}
     </div>
   );
 }
@@ -259,7 +265,7 @@ const DRIVER_HINT: Record<string, Record<"up" | "down", string>> = {
   leverage: { up: "부채를 더 활용했습니다 — 수익성 개선과는 구분해서 봐야 합니다.", down: "부채 의존이 줄었습니다." },
 };
 
-function CashSection({ analysis }: { analysis: Analysis }) {
+function CashSection({ analysis, currency }: { analysis: Analysis; currency?: string }) {
   const { years, cash } = analysis;
   const latest = cash[cash.length - 1];
   return (
@@ -267,7 +273,10 @@ function CashSection({ analysis }: { analysis: Analysis }) {
       <h2 id="cash-title" className="font-semibold">
         이익의 질 · 현금흐름 유형
       </h2>
-      <p className={`mt-0.5 ${caption}`}>순이익이 실제 현금으로 들어오는지, 번 돈을 어디에 쓰는지</p>
+      <p className={`mt-0.5 ${caption}`}>
+        순이익이 실제 현금으로 들어오는지, 번 돈을 어디에 쓰는지
+        {currency && currency !== "KRW" && ` · 금액 단위 ${currencyName(currency)}(${currency}), 억·조는 1억·1조 ${currencyName(currency)}`}
+      </p>
       {latest?.pattern && (
         <div className="mt-3 rounded-xl bg-neutral-50 p-3 dark:bg-neutral-900">
           <p className="text-sm">

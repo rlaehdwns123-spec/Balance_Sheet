@@ -40,23 +40,29 @@ export default function RatioCards({
   rows,
   fs,
   industry,
+  basis,
+  industryNote,
 }: {
   years: number[];
   rows: RatioRow[];
   fs: "CFS" | "OFS";
   industry: IndustryMeta | null;
+  /** 기준 문구 (기본: "연결 · 사업보고서 기준") */
+  basis?: string;
+  /** 업종 비교가 없을 때 안내 (기본: 불러오지 못함) */
+  industryNote?: string;
 }) {
   return (
     <div className="space-y-4">
       <div className="space-y-1 text-xs text-neutral-600 dark:text-neutral-400">
-        <p>{fs === "CFS" ? "연결" : "별도"} · 사업보고서 기준 · 화살표는 전년 대비 증감 · 이름을 누르면 의미와 계산식</p>
+        <p>{basis ?? `${fs === "CFS" ? "연결" : "별도"} · 사업보고서 기준`} · 화살표는 전년 대비 증감 · 이름을 누르면 의미와 계산식</p>
         {industry ? (
           <p>
             업종 비교: <span className="font-medium text-neutral-800 dark:text-neutral-200">{industry.name}</span> 상장사{" "}
             {industry.companies}개 · {industry.year}년 · DART 주요계정(연결 우선) 기준
           </p>
         ) : (
-          <p>업종 비교 데이터를 불러오지 못했습니다.</p>
+          <p>{industryNote ?? "업종 비교 데이터를 불러오지 못했습니다."}</p>
         )}
         {industry && <RangeLegend />}
       </div>
