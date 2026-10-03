@@ -44,7 +44,22 @@ export type StatementTable = {
   /** 손익계산서 양식 (IS 외에는 항상 kifrs) */
   format: IncomeFormat;
   rows: StatementRow[];
+  /**
+   * 공통형(비중) 보기의 기준값: 손익계산서는 매출액, 재무상태표는 자산총계 (columns와 같은 순서).
+   * 현금흐름표나 기준 행이 없으면 null
+   */
+  base: (number | null)[] | null;
 };
+
+/** 공통형 기준 행의 앵커 rank: 손익계산서 매출액, 재무상태표 자산총계 */
+const BASE_RANK: Partial<Record<StatementKind, number>> = { IS: 100, BS: 300 };
+
+/** 공통형 기준값: 기준 앵커 행의 값 */
+function baseValues<T extends { c: Classified }>(kind: StatementKind, items: T[], valuesOf: (item: T) => (number | null)[]) {
+  const rank = BASE_RANK[kind];
+  const hit = rank == null ? undefined : items.find((x) => x.c.isAnchor && x.c.rank === rank);
+  return hit ? valuesOf(hit) : null;
+}
 
 /**
  * 앵커 계정: 표준 순서(rank)와 계층을 고정하는 계정.
@@ -404,6 +419,7 @@ export function buildStatementTable(
     }
   });
 
+  const valuesOf = (e: Entry) => years.map((y) => e.values.get(y) ?? null);
   const rows = [...entries]
     .sort(
       (a, b) =>
@@ -425,7 +441,7 @@ export function buildStatementTable(
 
   const format: IncomeFormat = formats.size > 1 ? "mixed" : formats.has("ifrs18") ? "ifrs18" : "kifrs";
   const columns = years.map((y) => ({ key: String(y), label: String(y) }));
-  return { kind, columns, compare: false, source, format, rows };
+  return { kind, columns, compare: false, source, format, rows, base: baseValues(kind, entries, valuesOf) };
 }
 
 type AmountField = keyof Pick<
@@ -475,7 +491,9 @@ export function buildInterimTable(
         ];
 
   const picked = pickRows(report.rows, kind);
-  const rows = classify(picked.rows, layoutFor(kind, picked.rows, options))
+  const classified = classify(picked.rows, layoutFor(kind, picked.rows, options));
+  const valuesOf = ({ c }: { c: Classified }) => [amountOf(c.row, current), amountOf(c.row, prior)];
+  const rows = classified
     .sort((a, b) => a.rank - b.rank || Number(b.isAnchor) - Number(a.isAnchor) || Number(a.row.ord) - Number(b.row.ord))
     .map((c, i) => ({
       key: `${c.row.ord}-${i}`,
@@ -489,5 +507,6 @@ export function buildInterimTable(
     .filter((r) => r.values.some((v) => v !== null));
 
   const format: IncomeFormat = kind === "IS" && isIfrs18Income(picked.rows) ? "ifrs18" : "kifrs";
-  return { kind, columns, compare: true, source: picked.source, format, rows };
+  const base = baseValues(kind, classified.map((c) => ({ c })), valuesOf);
+  return { kind, columns, compare: true, source: picked.source, format, rows, base };
 }

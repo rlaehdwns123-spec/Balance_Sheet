@@ -2,8 +2,19 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { DartError, isDartError } from "./errors";
 import type { MultiAccountRow } from "@/lib/benchmark";
-import { interimCandidates, type InterimRef } from "@/lib/interim";
-import type { AnnualReport, DartAccountRow, DartCompany, FsDiv, InterimReport, ReportCode } from "./types";
+import { interimCandidates, QUARTER_OF, type InterimRef } from "@/lib/interim";
+import { quartersBack, reportKey, requiredReports, type QuarterRef, type QuarterReportSet } from "@/lib/quarterly";
+import type {
+  AnnualReport,
+  AuditOpinionRow,
+  DartAccountRow,
+  DartCompany,
+  DisclosureRow,
+  DividendRow,
+  FsDiv,
+  InterimReport,
+  ReportCode,
+} from "./types";
 
 const BASE_URL = "https://opendart.fss.or.kr/api";
 const REVALIDATE_SECONDS = 86400;
@@ -133,4 +144,120 @@ export async function getInterimReport(
     }
   }
   throw new DartError("013", "조회된 데이타가 없습니다.");
+}
+
+/** DART 응답이 013(데이터 없음)이면 빈 목록 */
+async function listOrEmpty<T>(endpoint: string, params: Record<string, string>): Promise<T[]> {
+  try {
+    const body = await dartGet<{ status: string; message: string; list?: T[] }>(endpoint, params);
+    return body.list ?? [];
+  } catch (err) {
+    if (isDartError(err, "NO_DATA")) return [];
+    throw err;
+  }
+}
+
+/** 배당에 관한 사항 (사업보고서, 당기·전기·전전기) */
+export const getDividends = unstable_cache(
+  async (corpCode: string, bsnsYear: number): Promise<DividendRow[]> =>
+    listOrEmpty<DividendRow>("alotMatter.json", { corp_code: corpCode, bsns_year: String(bsnsYear), reprt_code: "11011" }),
+  ["dart-alot-matter"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/** 회계감사인의 명칭 및 감사의견 (사업보고서, 당기·전기·전전기) */
+export const getAuditOpinions = unstable_cache(
+  async (corpCode: string, bsnsYear: number): Promise<AuditOpinionRow[]> =>
+    listOrEmpty<AuditOpinionRow>("accnutAdtorNmNdAdtOpinion.json", {
+      corp_code: corpCode,
+      bsns_year: String(bsnsYear),
+      reprt_code: "11011",
+    }),
+  ["dart-accnut-adtor-opinion"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/**
+ * 가장 최근 사업보고서 기준 자료: 작년부터 시도하고 비어 있으면(미공시) 재작년.
+ * 재무제표와 별개 API라 사업보고서가 있어도 항목이 비어 있을 수 있다.
+ */
+export async function latestAnnual<T>(
+  fetcher: (bsnsYear: number) => Promise<T[]>,
+  now: Date = new Date(),
+): Promise<{ year: number; rows: T[] } | null> {
+  for (const year of [now.getFullYear() - 1, now.getFullYear() - 2]) {
+    const rows = await fetcher(year);
+    if (rows.length) return { year, rows };
+  }
+  return null;
+}
+
+export type DisclosurePage = { rows: DisclosureRow[]; pageNo: number; totalPage: number; totalCount: number };
+
+/** 공시검색 (list). 기간은 YYYYMMDD, 유형(pblntf_ty)은 없으면 전체 */
+export const getDisclosures = unstable_cache(
+  async (corpCode: string, bgnDe: string, endDe: string, type: string | null, pageNo: number): Promise<DisclosurePage> => {
+    try {
+      const body = await dartGet<{
+        status: string;
+        message: string;
+        list: DisclosureRow[];
+        page_no: number;
+        total_page: number;
+        total_count: number;
+      }>("list.json", {
+        corp_code: corpCode,
+        bgn_de: bgnDe,
+        end_de: endDe,
+        ...(type ? { pblntf_ty: type } : {}),
+        page_no: String(pageNo),
+        page_count: "20",
+      });
+      return { rows: body.list, pageNo: body.page_no, totalPage: body.total_page, totalCount: body.total_count };
+    } catch (err) {
+      if (isDartError(err, "NO_DATA")) return { rows: [], pageNo: 1, totalPage: 0, totalCount: 0 };
+      throw err;
+    }
+  },
+  ["dart-list"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/**
+ * 최근 12개 분기 실적에 필요한 보고서들.
+ * 최신 분기는 최신 분기·반기 보고서와 최신 사업보고서(4분기) 중 늦은 쪽. 없는 보고서(013)는 빼고 반환한다.
+ */
+export async function getQuarterlyReports(
+  corpCode: string,
+  fsDiv: FsDiv,
+  count = 12,
+  now: Date = new Date(),
+): Promise<{ quarters: QuarterRef[]; reports: QuarterReportSet }> {
+  const orNull = <T>(p: Promise<T>) =>
+    p.catch((err) => {
+      if (isDartError(err, "NO_DATA")) return null;
+      throw err;
+    });
+
+  const [interim, annual] = await Promise.all([
+    orNull(getInterimReport(corpCode, fsDiv, null, now)),
+    latestAnnual(async (year) => (await orNull(getSinglAcntAll(corpCode, year, "11011", fsDiv))) ?? [], now),
+  ]);
+  const candidates: QuarterRef[] = [];
+  if (interim) candidates.push({ year: interim.bsnsYear, q: QUARTER_OF[interim.reprtCode] });
+  if (annual) candidates.push({ year: annual.year, q: 4 });
+  if (!candidates.length) throw new DartError("013", "조회된 데이타가 없습니다.");
+  const latest = candidates.reduce((a, b) => (b.year * 4 + b.q > a.year * 4 + a.q ? b : a));
+
+  const quarters = quartersBack(latest, count);
+  const reports: QuarterReportSet = new Map();
+  if (interim) reports.set(reportKey(interim.bsnsYear, interim.reprtCode), interim.rows);
+  if (annual) reports.set(reportKey(annual.year, "11011"), annual.rows);
+  const missing = requiredReports(quarters).filter(({ year, code }) => !reports.has(reportKey(year, code)));
+  const fetched = await Promise.all(missing.map(({ year, code }) => orNull(getSinglAcntAll(corpCode, year, code, fsDiv))));
+  missing.forEach(({ year, code }, i) => {
+    const rows = fetched[i];
+    if (rows) reports.set(reportKey(year, code), rows);
+  });
+  return { quarters, reports };
 }

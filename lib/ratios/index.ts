@@ -1,7 +1,8 @@
+import type { MetricUnit } from "@/lib/format";
 import type { StandardAccounts } from "@/lib/normalize";
 
 export type RatioCategory = "profitability" | "stability" | "growth" | "activity";
-export type RatioUnit = "percent" | "times";
+export type RatioUnit = MetricUnit;
 
 export const CATEGORY_LABEL: Record<RatioCategory, string> = {
   profitability: "수익성",
@@ -46,6 +47,47 @@ export function growthRate(cur: number | null | undefined, prev: number | null |
 }
 
 const avgOf = (p: Pair, key: keyof Omit<StandardAccounts, "year">) => average(p.cur[key], p.prev?.[key]);
+
+/** 차입금 합계에 넣는 계정 */
+export const BORROWING_KEYS = ["shortTermBorrowings", "currentPortionOfLongTermDebt", "longTermBorrowings", "bonds"] as const;
+
+/**
+ * 차입금 합계 = 단기차입금 + 유동성장기부채 + 장기차입금 + 사채 (찾은 계정만 더한다).
+ * 하나도 못 찾으면 null — 차입이 없는 회사와 차입금을 "금융부채" 같은 다른 계정에 섞어 공시한 회사를
+ * 구분할 수 없어, 0으로 보면 순현금으로 잘못 보일 수 있다.
+ */
+export function totalBorrowings(a: StandardAccounts | null | undefined): number | null {
+  if (!a) return null;
+  const found = BORROWING_KEYS.map((k) => a[k]).filter((v): v is number => v != null);
+  return found.length ? found.reduce((sum, v) => sum + v, 0) : null;
+}
+
+/** 이자보상배율 분모: 이자비용이 따로 있으면 이자비용, 없으면 금융비용(대용치) */
+export function interestBasis(a: StandardAccounts): { value: number | null; proxy: boolean } {
+  if (a.interestExpense != null) return { value: a.interestExpense, proxy: false };
+  return { value: a.financeCosts, proxy: a.financeCosts != null };
+}
+
+/** 매출원가가 없는 회사(영업수익만 공시하는 서비스업 등)는 매출액으로 대신 */
+const costBase = (a: StandardAccounts) => a.costOfSales ?? a.revenue;
+
+const DAYS = 365;
+
+/**
+ * 현금전환주기 = 매출채권회수기간 + 재고자산회전기간 − 매입채무지급기간 (평균잔액, 365일).
+ * 재고자산이 없는 회사는 재고 기간 0.
+ */
+function cashConversionCycle(p: Pair): number | null {
+  if (!p.prev) return null;
+  const avgReceivables = average(p.cur.receivables, p.prev.receivables);
+  const avgPayables = average(p.cur.payables, p.prev.payables);
+  const avgInventories = average(p.cur.inventories ?? 0, p.prev.inventories ?? 0);
+  const dso = safeDiv(avgReceivables, p.cur.revenue);
+  const dpo = safeDiv(avgPayables, costBase(p.cur));
+  const dio = avgInventories === 0 ? 0 : safeDiv(avgInventories, costBase(p.cur));
+  if (dso == null || dpo == null || dio == null) return null;
+  return (dso + dio - dpo) * DAYS;
+}
 
 /**
  * ROE: 지배주주 기준이 가능하면 지배주주순이익 / 평균 지배주주지분,
@@ -145,6 +187,36 @@ export const RATIOS: RatioDef[] = [
     higherIsBetter: true,
     compute: ({ cur }) => safeDiv(cur.totalEquity, cur.totalAssets),
   },
+  {
+    key: "interestCoverage",
+    label: "이자보상배율",
+    category: "stability",
+    unit: "multiple",
+    formula: "영업이익 ÷ 이자비용\n(손익계산서에 이자비용이 따로 없으면 금융비용으로 대신)",
+    higherIsBetter: true,
+    compute: ({ cur }) => safeDiv(cur.operatingIncome, interestBasis(cur).value),
+  },
+  {
+    key: "netDebt",
+    label: "순차입금",
+    category: "stability",
+    unit: "won",
+    formula: "차입금 합계 − 현금및현금성자산 (기말)\n차입금 = 단기차입금 + 유동성장기부채 + 장기차입금 + 사채\n마이너스면 현금이 차입금보다 많은 순현금",
+    higherIsBetter: false,
+    compute: ({ cur }) => {
+      const debt = totalBorrowings(cur);
+      return debt == null || cur.cash == null ? null : debt - cur.cash;
+    },
+  },
+  {
+    key: "debtDependence",
+    label: "차입금의존도",
+    category: "stability",
+    unit: "percent",
+    formula: "차입금 합계 ÷ 자산총계 (기말)\n차입금 = 단기차입금 + 유동성장기부채 + 장기차입금 + 사채",
+    higherIsBetter: false,
+    compute: ({ cur }) => safeDiv(totalBorrowings(cur), cur.totalAssets),
+  },
   // 성장성 (전년 대비)
   {
     key: "revenueGrowth",
@@ -209,6 +281,25 @@ export const RATIOS: RatioDef[] = [
     formula: "매출액 ÷ 평균 재고자산",
     higherIsBetter: true,
     compute: (p) => safeDiv(p.cur.revenue, avgOf(p, "inventories")),
+  },
+  {
+    key: "receivableTurnover",
+    label: "매출채권회전율",
+    category: "activity",
+    unit: "times",
+    formula: "매출액 ÷ 평균 매출채권",
+    higherIsBetter: true,
+    compute: (p) => safeDiv(p.cur.revenue, avgOf(p, "receivables")),
+  },
+  {
+    key: "cashConversionCycle",
+    label: "현금전환주기",
+    category: "activity",
+    unit: "days",
+    formula:
+      "매출채권 회수기간 + 재고자산 보유기간 − 매입채무 지급기간\n회수기간 = 평균 매출채권 ÷ 매출액 × 365\n보유·지급기간 = 평균 재고자산·매입채무 ÷ 매출원가 × 365\n(매출원가가 없으면 매출액)",
+    higherIsBetter: false,
+    compute: cashConversionCycle,
   },
 ];
 

@@ -126,3 +126,57 @@ describe("buildStandardYears", () => {
     expect(years.map((y) => y.year)).toEqual([2025]);
   });
 });
+
+describe("v1.1 추가 표준 계정", () => {
+  it("운전자본·차입금·자본 항목과 현금흐름 유형자산 취득", () => {
+    const [, , y2025] = normalizeReport(
+      report(2025, [
+        row("BS", "ifrs-full_CurrentTradeReceivables", "매출채권", ["511"]),
+        row("BS", "ifrs-full_TradeAndOtherCurrentPayablesToTradeSuppliers", "매입채무", ["130"]),
+        row("BS", "dart_CurrentLoansReceived", "단기차입금", ["175"]),
+        row("BS", "ifrs-full_CurrentPortionOfLongtermBorrowings", "유동성장기부채", ["11"]),
+        row("BS", "ifrs-full_NoncurrentPortionOfNoncurrentBondsIssued", "사채", ["1"]),
+        row("BS", "ifrs-full_NoncurrentPortionOfNoncurrentLoansReceived", "장기차입금", ["64"]),
+        row("BS", "ifrs-full_IssuedCapital", "자본금", ["9"]),
+        row("BS", "ifrs-full_RetainedEarnings", "이익잉여금", ["4,021"]),
+        row("IS", "ifrs-full_FinanceCosts", "금융비용", ["117"]),
+        row("CF", "ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities", "유형자산의 취득", ["(475)"]),
+      ]),
+    );
+    expect(y2025).toMatchObject({
+      receivables: 511,
+      payables: 130,
+      shortTermBorrowings: 175,
+      currentPortionOfLongTermDebt: 11,
+      bonds: 1,
+      longTermBorrowings: 64,
+      issuedCapital: 9,
+      retainedEarnings: 4021,
+      financeCosts: 117,
+      interestExpense: null,
+      capex: -475,
+    });
+  });
+
+  it("단기·유동성 차입금을 한 줄('차입금')로 공시하면 계정ID로 단기차입금에, 같은 이름의 장기 차입금과 구분", () => {
+    const [, , y2025] = normalizeReport(
+      report(2025, [
+        row("BS", "ifrs-full_CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings", "차입금", ["81"]),
+        row("BS", "ifrs-full_LongtermBorrowings", "차입금", ["140"]),
+      ]),
+    );
+    expect(y2025.shortTermBorrowings).toBe(81);
+    expect(y2025.longTermBorrowings).toBe(140);
+  });
+
+  it("계정ID가 없어도 계정명으로 (매출채권및기타채권, 이익잉여금(결손금))", () => {
+    const [, , y2025] = normalizeReport(
+      report(2025, [
+        row("BS", "-표준계정코드 미사용-", "매출채권 및 기타채권", ["50"]),
+        row("BS", "-표준계정코드 미사용-", "이익잉여금(결손금)", ["(30)"]),
+      ]),
+    );
+    expect(y2025.receivables).toBe(50);
+    expect(y2025.retainedEarnings).toBe(-30);
+  });
+});

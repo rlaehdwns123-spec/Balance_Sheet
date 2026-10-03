@@ -64,3 +64,44 @@ export type InterimReport = {
   reprtCode: InterimCode;
   rows: DartAccountRow[];
 };
+
+/** alotMatter(배당에 관한 사항) 응답의 한 행. 값은 문자열 ("1,668", "25.10", "-") */
+export type DividendRow = {
+  rcept_no: string;
+  corp_code: string;
+  /** 구분 (예: "주당 현금배당금(원)", "(연결)현금배당성향(%)") */
+  se: string;
+  /** 주식 종류 (보통주/우선주/"-") */
+  stock_knd?: string;
+  thstrm: string;
+  frmtrm: string;
+  lwfr: string;
+  /** 결산기준일 YYYY-MM-DD */
+  stlm_dt: string;
+};
+
+/** accnutAdtorNmNdAdtOpinion(회계감사인의 명칭 및 감사의견) 응답의 한 행 */
+export type AuditOpinionRow = {
+  rcept_no: string;
+  corp_code: string;
+  /** "제57기 (당기)" 형식 */
+  bsns_year: string;
+  adtor: string;
+  adt_opinion: string;
+  adt_reprt_spcmnt_matter?: string;
+  emphs_matter?: string;
+  core_adt_matter?: string;
+  stlm_dt: string;
+};
+
+/** list(공시검색) 응답의 한 행 */
+export type DisclosureRow = {
+  corp_code: string;
+  corp_name: string;
+  report_nm: string;
+  rcept_no: string;
+  flr_nm: string;
+  /** YYYYMMDD */
+  rcept_dt: string;
+  rm: string;
+};

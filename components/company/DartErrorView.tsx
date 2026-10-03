@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { DartErrorKind } from "@/lib/dart/errors";
 
 export type DartErrorInfo = { kind: DartErrorKind; status: string; message: string };
@@ -17,6 +17,10 @@ export default function DartErrorView({
   interim?: boolean;
 }) {
   const router = useRouter();
+  // 지금 보던 화면(분기 보기·보고서 선택 등)은 그대로 두고 별도 재무제표로
+  const searchParams = useSearchParams();
+  const ofsQuery = new URLSearchParams(searchParams.toString());
+  ofsQuery.set("fs", "OFS");
 
   let title: string;
   let body: React.ReactNode;
@@ -27,7 +31,7 @@ export default function DartErrorView({
         fs === "CFS" ? (
           <>
             연결재무제표가 없는 회사일 수 있습니다.{" "}
-            <Link href={interim ? "?fs=OFS&pd=Q" : "?fs=OFS"} className="font-medium text-blue-600 underline dark:text-blue-400">
+            <Link href={`?${ofsQuery}`} className="font-medium text-blue-600 underline dark:text-blue-400">
               별도 재무제표 보기
             </Link>
           </>

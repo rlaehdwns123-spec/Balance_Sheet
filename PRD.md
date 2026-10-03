@@ -44,6 +44,21 @@ DART Open API로 상장사 재무제표를 불러와 연도별로 정리하고, 
 | operatingCashFlow | 영업활동현금흐름 | CF | ifrs-full_CashFlowsFromUsedInOperatingActivities | 영업활동현금흐름, 영업활동으로 인한 현금흐름 |
 | investingCashFlow | 투자활동현금흐름 | CF | ifrs-full_CashFlowsFromUsedInInvestingActivities | 투자활동현금흐름, 투자활동으로 인한 현금흐름 |
 | financingCashFlow | 재무활동현금흐름 | CF | ifrs-full_CashFlowsFromUsedInFinancingActivities | 재무활동현금흐름, 재무활동으로 인한 현금흐름 |
+| interestExpense | 이자비용 | IS→CIS | ifrs-full_InterestExpense | 이자비용 |
+| financeCosts | 금융비용 | IS→CIS | ifrs-full_FinanceCosts | 금융비용, 금융원가, 재무비용, 재무원가 |
+| receivables | 매출채권 | BS | ifrs-full_CurrentTradeReceivables, ifrs-full_TradeAndOtherCurrentReceivables, ifrs-full_TradeReceivables | 매출채권, 매출채권및기타채권, 매출채권및기타유동채권 |
+| payables | 매입채무 | BS | ifrs-full_TradeAndOtherCurrentPayablesToTradeSuppliers, ifrs-full_CurrentTradePayables, ifrs-full_TradeAndOtherCurrentPayables | 매입채무, 매입채무및기타채무, 매입채무및기타유동채무 |
+| shortTermBorrowings | 단기차입금 | BS | ifrs-full_ShorttermBorrowings, dart_ShortTermBorrowings, dart_CurrentLoansReceived, ifrs-full_CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings | 단기차입금, 단기차입부채 |
+| currentPortionOfLongTermDebt | 유동성장기부채 | BS | ifrs-full_CurrentPortionOfLongtermBorrowings | 유동성장기부채, 유동성장기차입금 |
+| longTermBorrowings | 장기차입금 | BS | ifrs-full_NoncurrentPortionOfNoncurrentLoansReceived, ifrs-full_LongtermBorrowings | 장기차입금, 장기차입부채 |
+| bonds | 사채 | BS | ifrs-full_NoncurrentPortionOfNoncurrentBondsIssued, ifrs-full_BondsIssued | 사채, 비유동사채 |
+| issuedCapital | 자본금 | BS | ifrs-full_IssuedCapital | 자본금 |
+| retainedEarnings | 이익잉여금 | BS | ifrs-full_RetainedEarnings | 이익잉여금, 이익잉여금(결손금), 결손금 |
+| capex | 유형자산의 취득 | CF | ifrs-full_PurchaseOfPropertyPlantAndEquipment(ClassifiedAsInvestingActivities) | 유형자산의취득, 유형자산취득 |
+
+- 단기·유동성 차입금을 한 줄("차입금", `CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings`)로 공시하는 회사는 그 값이 단기차입금에 들어간다.
+- 유형자산의 취득은 회사마다 부호(양수/음수)가 달라 쓰는 쪽에서 절댓값을 쓴다.
+- 당기순이익 계정명 대체에 분기·반기 보고서의 "분기순이익"·"반기순이익"도 포함한다.
 
 ### 5개년 수집
 
@@ -105,6 +120,14 @@ DART Open API로 상장사 재무제표를 불러와 연도별로 정리하고, 
 | 활동성 | 총자산회전율 | 매출액 ÷ 평균 자산총계 | 회 |
 | 활동성 | 자기자본회전율 | 매출액 ÷ 평균 자본총계 | 회 |
 | 활동성 | 재고자산회전율 | 매출액 ÷ 평균 재고자산 | 회 |
+| 안정성 | 이자보상배율 | 영업이익 ÷ 이자비용 (이자비용이 없으면 금융비용 대용, 화면에 표기) | 배 |
+| 안정성 | 순차입금 | 차입금 합계 − 현금및현금성자산 | 원 |
+| 안정성 | 차입금의존도 | 차입금 합계 ÷ 자산총계 | % |
+| 활동성 | 매출채권회전율 | 매출액 ÷ 평균 매출채권 | 회 |
+| 활동성 | 현금전환주기 | (평균 매출채권 ÷ 매출액 + 평균 재고자산 ÷ 매출원가 − 평균 매입채무 ÷ 매출원가) × 365 | 일 |
+
+- **차입금 합계** = 단기차입금 + 유동성장기부채 + 장기차입금 + 사채 (찾은 계정만 더함, 리스부채 제외). 하나도 못 찾으면 `null` — 차입금이 없는 회사와 "금융부채"에 섞어 공시한 회사를 구분할 수 없어 0으로 보지 않는다.
+- 현금전환주기: 매출원가가 없으면 매출액, 재고자산 계정이 없으면 재고 기간 0. 차트 탭은 한 카테고리에 축 하나라 %·회 지표만 그린다.
 
 각 비율의 **의미·읽는 법** 설명은 `lib/ratios/guide.ts`에 두고, 카드와 툴팁에 보여준다.
 
@@ -175,6 +198,49 @@ ROE = 순이익률(당기순이익 ÷ 매출액) × 총자산회전율(매출액
 ### 업종 대비 강점·약점
 
 "동일업종 비교"의 최신 연도 순위에서 업종 상위권(상위 25% 이내)은 강점, 하위권은 약점. 업종 비교가 실패하면 이 절만 빠지고 영역 판정에서도 업종 규칙만 빠진다.
+
+## v1.1 화면 구조
+
+- **기업 상세 탭**: 재무제표 / 비율·분석(하위: 비율·분석·차트) / 분기 / 배당·공시. 추가 API는 해당 탭을 열 때만 호출하고 성공 응답만 하루(86400초) 캐시한다.
+- **하단 탭**: 검색 / 관심기업 / 비교. 예전 `/statements`·`/analysis`는 `/watchlist`로, 예전 `?pd=Q` 주소는 분기 탭의 보고서별 재무제표로 보낸다.
+- **재무제표 탭**: 사업보고서 5개년. 금액/비중 토글(`vw=pct`) — 손익계산서는 매출액, 재무상태표는 자산총계 대비 %(공통형). 현금흐름표·주당이익은 비중 없음.
+- **관심기업**: localStorage(`dart:watchlist`, 최대 50개, 모든 접근 try/catch). 기업 이름 옆 별표로 토글.
+- **엑셀 내보내기**: `/api/export`가 재무제표·재무비율·분석·위험 신호 데이터를 주고, 클라이언트에서 exceljs(누를 때만 로드)로 시트별 .xlsx를 만든다. 업종 비교는 넣지 않는다.
+
+## 위험 신호 점검
+
+`lib/analysis/risk.ts`와 동일하게 유지한다. 분석 화면 맨 위, 최신 사업연도 기준. 해당 항목은 배지 + 근거 수치, 나머지는 "해당 없음/확인 불가"로 접어 둔다. "참고용 지표이며 투자 판단의 근거가 아님"을 표시한다.
+
+| 항목 | 해당 조건 |
+|---|---|
+| 영업적자 연속 | 최신 연도부터 연속 2년 이상 영업손실 (연도가 끊기면 멈춤) |
+| 자본잠식 | 자본총계 < 0 완전, 자본총계 < 자본금 부분 (잠식률 = (자본금 − 자본총계) ÷ 자본금) |
+| 이자보상배율 | 1배 미만 (금융비용 대용이면 근거에 표기) |
+| 흑자인데 영업현금 유출 | 당기순이익 > 0 이고 영업활동현금흐름 < 0 |
+| 부채비율 | 200% 초과, 또는 자본총계 ≤ 0 이라 산정 불가 |
+| 유동비율 | 100% 미만 |
+| 매출채권 급증 | 매출채권 증가율 − 매출액 증가율 ≥ 20%p |
+| 감사의견 | 최신 연도 감사의견이 "적정"으로 시작하지 않음 |
+
+이익의 질에는 유형자산 취득, **FCF = 영업활동현금흐름 − |유형자산의 취득|**, FCF 마진(FCF ÷ 매출액)을 더한다.
+
+## 분기 실적
+
+`lib/quarterly.ts`와 동일하게 유지한다. 최근 12개 분기(최신 분기 = 최신 분기·반기 보고서와 최신 사업보고서 4분기 중 늦은 쪽).
+
+- DART 응답 확인 결과: 손익은 `thstrm_amount` = 해당 분기 3개월, `thstrm_add_amount` = 누적. 현금흐름은 `thstrm_amount`가 연초부터 누적.
+- 손익: 1~3분기는 3개월 값, **4분기 = 연간 − 3분기 누적** (누적 필드가 비면 1~3분기 합).
+- 현금흐름: 분기 값 = 이번 누적 − 직전 분기 누적 (직전 보고서가 없으면 null). 유형자산 취득은 절댓값.
+- 항목: 매출액(전년 동기 대비), 영업이익, 영업이익률, 당기순이익, 영업활동현금흐름, 유형자산의 취득, FCF.
+- 분기 탭의 "보고서별 재무제표"는 분기·반기 보고서 한 건을 전년 동기와 비교한다(기존 기능 이동).
+
+## 배당·공시
+
+`lib/disclosure.ts`와 동일하게 유지한다. 최신 사업연도는 작년부터 시도하고 비어 있으면 재작년.
+
+- **배당** (`alotMatter`, 1회 호출에 당기·전기·전전기): 주당 현금배당금(보통주·우선주), 현금배당성향(연결/별도 중 재무제표 구분에 맞는 줄), 현금배당수익률, 현금배당금총액.
+- **감사의견** (`accnutAdtorNmNdAdtOpinion`): 감사인, 감사의견, 강조사항, 핵심감사사항, 특기사항. 연도는 결산일 연도에서 (당기/전기/전전기)를 뺀다. 연결·별도 두 줄은 같은 연도·감사인·의견이면 합치고 내용을 이어 붙인다.
+- **최근 공시** (`list`): 최근 1년, 20건씩, 공시유형(pblntf_ty) 필터. 제목·접수일·제출인, 정정 공시 표시. 원문 `https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}`.
 
 ## 기술 스택
 

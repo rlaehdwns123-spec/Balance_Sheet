@@ -135,3 +135,20 @@ export function TableSkeleton({ rows = 12 }: { rows?: number }) {
     </div>
   );
 }
+
+export function ListSkeleton({ title, rows = 4 }: { title: string; rows?: number }) {
+  return (
+    <div role="status" aria-label={`${title} 불러오는 중`} className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
+      <div className={`h-5 w-20 ${bar}`} />
+      <div className={`mt-2 h-3 w-40 ${bar}`} />
+      <div className="mt-4 space-y-3">
+        {Array.from({ length: rows }, (_, i) => (
+          <div key={i} className="space-y-1.5">
+            <div className={`h-4 ${bar}`} style={{ width: `${55 + ((i * 23) % 40)}%` }} />
+            <div className={`h-3 w-28 ${bar}`} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

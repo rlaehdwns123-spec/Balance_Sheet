@@ -39,7 +39,18 @@ export const ACCOUNT_MAP = {
     label: "당기순이익",
     statements: INCOME,
     ids: ["ifrs-full_ProfitLoss"],
-    names: ["당기순이익", "당기순이익(손실)", "당기순손익", "연결당기순이익", "당기순손실"],
+    // 분기·반기 보고서는 "분기순이익"·"반기순이익"
+    names: [
+      "당기순이익",
+      "당기순이익(손실)",
+      "당기순손익",
+      "연결당기순이익",
+      "당기순손실",
+      "분기순이익",
+      "분기순이익(손실)",
+      "반기순이익",
+      "반기순이익(손실)",
+    ],
   },
   netIncomeOwners: {
     label: "지배주주순이익",
@@ -47,6 +58,13 @@ export const ACCOUNT_MAP = {
     ids: ["ifrs-full_ProfitLossAttributableToOwnersOfParent"],
     // "지배기업 소유주지분"은 총포괄이익 귀속분과 이름이 같아 대체 매칭에서 제외
     names: ["지배기업의소유주에게귀속되는당기순이익", "지배기업소유주지분순이익"],
+  },
+  interestExpense: { label: "이자비용", statements: INCOME, ids: ["ifrs-full_InterestExpense"], names: ["이자비용"] },
+  financeCosts: {
+    label: "금융비용",
+    statements: INCOME,
+    ids: ["ifrs-full_FinanceCosts"],
+    names: ["금융비용", "금융원가", "재무비용", "재무원가"],
   },
   // 재무상태
   totalAssets: { label: "자산총계", statements: ["BS"], ids: ["ifrs-full_Assets"], names: ["자산총계"] },
@@ -57,6 +75,12 @@ export const ACCOUNT_MAP = {
     ids: ["ifrs-full_CashAndCashEquivalents"],
     names: ["현금및현금성자산"],
   },
+  receivables: {
+    label: "매출채권",
+    statements: ["BS"],
+    ids: ["ifrs-full_CurrentTradeReceivables", "ifrs-full_TradeAndOtherCurrentReceivables", "ifrs-full_TradeReceivables"],
+    names: ["매출채권", "매출채권및기타채권", "매출채권및기타유동채권", "매출채권및기타채권(유동)"],
+  },
   inventories: { label: "재고자산", statements: ["BS"], ids: ["ifrs-full_Inventories"], names: ["재고자산"] },
   totalLiabilities: { label: "부채총계", statements: ["BS"], ids: ["ifrs-full_Liabilities"], names: ["부채총계"] },
   currentLiabilities: {
@@ -64,6 +88,53 @@ export const ACCOUNT_MAP = {
     statements: ["BS"],
     ids: ["ifrs-full_CurrentLiabilities"],
     names: ["유동부채"],
+  },
+  payables: {
+    label: "매입채무",
+    statements: ["BS"],
+    ids: [
+      "ifrs-full_TradeAndOtherCurrentPayablesToTradeSuppliers",
+      "ifrs-full_CurrentTradePayables",
+      "ifrs-full_TradeAndOtherCurrentPayables",
+    ],
+    names: ["매입채무", "매입채무및기타채무", "매입채무및기타유동채무", "매입채무및기타채무(유동)"],
+  },
+  shortTermBorrowings: {
+    label: "단기차입금",
+    statements: ["BS"],
+    // 단기차입금과 유동성장기부채를 한 줄("차입금")로 공시하는 회사는 합친 값이 여기 들어간다
+    ids: [
+      "ifrs-full_ShorttermBorrowings",
+      "dart_ShortTermBorrowings",
+      "dart_CurrentLoansReceived",
+      "ifrs-full_CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings",
+    ],
+    names: ["단기차입금", "단기차입부채"],
+  },
+  currentPortionOfLongTermDebt: {
+    label: "유동성장기부채",
+    statements: ["BS"],
+    ids: ["ifrs-full_CurrentPortionOfLongtermBorrowings"],
+    names: ["유동성장기부채", "유동성장기차입금", "유동성장기차입금및사채"],
+  },
+  longTermBorrowings: {
+    label: "장기차입금",
+    statements: ["BS"],
+    ids: ["ifrs-full_NoncurrentPortionOfNoncurrentLoansReceived", "ifrs-full_LongtermBorrowings", "dart_LongTermBorrowingsGross"],
+    names: ["장기차입금", "장기차입부채"],
+  },
+  bonds: {
+    label: "사채",
+    statements: ["BS"],
+    ids: ["ifrs-full_NoncurrentPortionOfNoncurrentBondsIssued", "ifrs-full_BondsIssued", "dart_BondsIssued"],
+    names: ["사채", "비유동사채"],
+  },
+  issuedCapital: { label: "자본금", statements: ["BS"], ids: ["ifrs-full_IssuedCapital"], names: ["자본금"] },
+  retainedEarnings: {
+    label: "이익잉여금",
+    statements: ["BS"],
+    ids: ["ifrs-full_RetainedEarnings"],
+    names: ["이익잉여금", "이익잉여금(결손금)", "결손금", "미처분이익잉여금(미처리결손금)"],
   },
   totalEquity: { label: "자본총계", statements: ["BS"], ids: ["ifrs-full_Equity"], names: ["자본총계"] },
   equityOwners: {
@@ -90,6 +161,16 @@ export const ACCOUNT_MAP = {
     statements: ["CF"],
     ids: ["ifrs-full_CashFlowsFromUsedInFinancingActivities"],
     names: ["재무활동현금흐름", "재무활동으로인한현금흐름"],
+  },
+  // 유출을 양수로 적는 회사와 음수로 적는 회사가 섞여 있어 쓰는 쪽에서 절댓값을 쓴다
+  capex: {
+    label: "유형자산의 취득",
+    statements: ["CF"],
+    ids: [
+      "ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+      "ifrs-full_PurchaseOfPropertyPlantAndEquipment",
+    ],
+    names: ["유형자산의취득", "유형자산취득", "유형자산의증가"],
   },
 } satisfies Record<string, AccountDef>;
 

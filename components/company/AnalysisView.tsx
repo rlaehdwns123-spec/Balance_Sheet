@@ -9,6 +9,7 @@ import {
   type IndustryPoint,
   type Tone,
 } from "@/lib/analysis";
+import type { RiskCheck, RiskStatus } from "@/lib/analysis/risk";
 import { formatRatio, formatWonCompact } from "@/lib/format";
 
 const GRADE: Record<Grade, { label: string; className: string }> = {
@@ -30,11 +31,13 @@ const caption = "text-xs text-neutral-500 dark:text-neutral-400";
 
 export default function AnalysisView({
   analysis,
+  risks,
   fs,
   corpCode,
   industryName,
 }: {
   analysis: Analysis;
+  risks: RiskCheck[];
   fs: "CFS" | "OFS";
   corpCode: string;
   industryName: string | null;
@@ -52,11 +55,13 @@ export default function AnalysisView({
         <p>
           근거 숫자는{" "}
           <Link href={`/company/${corpCode}/ratios${fs === "OFS" ? "?fs=OFS" : ""}`} className="font-medium text-blue-700 underline dark:text-blue-400">
-            재무비율 탭
+            비율 화면
           </Link>
           에서 볼 수 있습니다.
         </p>
       </div>
+
+      <RiskSection risks={risks} year={latestYear} />
 
       <section aria-labelledby="summary-title" className={card}>
         <h2 id="summary-title" className="font-semibold">
@@ -80,6 +85,70 @@ export default function AnalysisView({
       <SignalsSection analysis={analysis} />
       <IndustrySection analysis={analysis} industryName={industryName} />
     </div>
+  );
+}
+
+const RISK_STATUS: Record<RiskStatus, { label: string; className: string }> = {
+  hit: { label: "해당", className: "bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-200" },
+  clear: { label: "해당 없음", className: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400" },
+  na: { label: "확인 불가", className: "bg-neutral-50 text-neutral-400 dark:bg-neutral-900 dark:text-neutral-500" },
+};
+
+/** 위험 신호 점검: 해당 항목은 배지 + 근거 수치, 나머지는 접어서 */
+function RiskSection({ risks, year }: { risks: RiskCheck[]; year: number }) {
+  const hits = risks.filter((r) => r.status === "hit");
+  const rest = risks.filter((r) => r.status !== "hit");
+  return (
+    <section aria-labelledby="risk-title" className={card}>
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 id="risk-title" className="font-semibold">
+          위험 신호 점검
+        </h2>
+        <span className={caption}>
+          {year}년 · {risks.length}개 항목
+        </span>
+      </div>
+      <p className="mt-1 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+        참고용 지표이며 투자 판단의 근거가 아닙니다.
+      </p>
+
+      {hits.length === 0 ? (
+        <p className="mt-3 text-sm text-neutral-700 dark:text-neutral-300">점검한 항목 중 해당하는 위험 신호가 없습니다.</p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {hits.map((r) => (
+            <li key={r.key} className="rounded-xl border border-red-200 bg-red-50/60 p-3 dark:border-red-900/60 dark:bg-red-950/30">
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white dark:bg-red-500">
+                <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                  <path d="M10 2 1 18h18L10 2zm-.9 6h1.8v5H9.1V8zm0 6.5h1.8v1.8H9.1v-1.8z" />
+                </svg>
+                {r.badge}
+              </span>
+              {r.evidence && <p className="mt-1.5 text-xs tabular-nums text-neutral-700 dark:text-neutral-300">{r.evidence}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <details className="group mt-3">
+        <summary className="cursor-pointer text-xs font-medium text-neutral-600 select-none dark:text-neutral-400">
+          전체 점검 항목 보기 ({rest.length}개 해당 없음·확인 불가)
+        </summary>
+        <ul className="mt-2 divide-y divide-neutral-100 dark:divide-neutral-800">
+          {risks.map((r) => (
+            <li key={r.key} className="flex items-start justify-between gap-3 py-2 text-xs">
+              <span className="min-w-0">
+                <span className="text-neutral-800 dark:text-neutral-200">{r.label}</span>
+                {r.evidence && <span className="block tabular-nums text-neutral-500">{r.evidence}</span>}
+              </span>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${RISK_STATUS[r.status].className}`}>
+                {RISK_STATUS[r.status].label}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </section>
   );
 }
 
@@ -219,6 +288,9 @@ function CashSection({ analysis }: { analysis: Analysis }) {
           years={years}
           cells={cash.map((c) => ratioCell(c.cashConversion, "times", "배"))}
         />
+        <YearRow label="유형자산 취득" hint="설비 투자(CAPEX)" years={years} cells={cash.map((c) => wonCell(c.capex))} />
+        <YearRow label="잉여현금흐름(FCF)" hint="영업현금흐름 − 유형자산 취득" years={years} cells={cash.map((c) => wonCell(c.fcf))} />
+        <YearRow label="FCF 마진" hint="FCF ÷ 매출액" years={years} cells={cash.map((c) => ratioCell(c.fcfMargin, "percent"))} />
         <YearRow
           label="유형"
           years={years}
@@ -233,7 +305,10 @@ function CashSection({ analysis }: { analysis: Analysis }) {
           )}
         />
       </div>
-      <p className={`mt-3 ${caption}`}>순이익이 적자인 해는 현금 전환을 계산하지 않습니다.</p>
+      <p className={`mt-3 ${caption}`}>
+        순이익이 적자인 해는 현금 전환을 계산하지 않습니다. 유형자산 취득은 현금흐름표의 &ldquo;유형자산의 취득&rdquo;이며 무형자산·리스 투자는
+        포함하지 않습니다.
+      </p>
     </section>
   );
 }

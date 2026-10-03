@@ -22,6 +22,13 @@ describe("formatRatio", () => {
     expect(formatRatio(0.6169467229, "times")).toBe("0.62회");
     expect(formatRatio(null, "times")).toBe("–");
   });
+
+  it("배수·일수·금액 단위", () => {
+    expect(formatRatio(3.7158, "multiple")).toBe("3.72배");
+    expect(formatRatio(123.1, "days")).toBe("123일");
+    expect(formatRatio(-32617239000000, "won")).toBe("-32.6조");
+    expect(formatRatio(3.4e11, "won")).toBe("3,400억");
+  });
 });
 
 describe("formatRatioDelta", () => {
@@ -38,6 +45,14 @@ describe("formatRatioDelta", () => {
   it("times 증감은 회, 없으면 null", () => {
     expect(formatRatioDelta(0.125, "times")).toEqual({ direction: "up", text: "0.13회" });
     expect(formatRatioDelta(null, "times")).toBeNull();
+  });
+
+  it("배수·일수·금액 증감", () => {
+    expect(formatRatioDelta(-0.5, "multiple")).toEqual({ direction: "down", text: "0.50배" });
+    expect(formatRatioDelta(12.4, "days")).toEqual({ direction: "up", text: "12일" });
+    expect(formatRatioDelta(0.3, "days")).toEqual({ direction: "flat", text: "0" });
+    expect(formatRatioDelta(2e12, "won")).toEqual({ direction: "up", text: "2.0조" });
+    expect(formatRatioDelta(1e6, "won")).toEqual({ direction: "flat", text: "0" });
   });
 });
 

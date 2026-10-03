@@ -8,11 +8,14 @@ export type Period = "A" | "Q";
 export type IncomeView = "ifrs18" | "classic";
 /** 분기 손익 기준: 해당 분기 3개월 / 연초부터 누적 */
 export type IncomeBasis = "q" | "cum";
+/** 값 표시: 금액 / 공통형 비중(손익은 매출액, 재무상태는 자산총계 대비 %) */
+export type ValueView = "amt" | "pct";
 
 /**
  * 재무제표 화면 URL 쿼리
  * - 데이터가 바뀌는 값(서버): fs=CFS|OFS, pd=A|Q, q=2026-11012 (분기 보고서 지정, 없으면 최신)
- * - 표시만 바뀌는 값(클라이언트): sj=BS|IS|CF, unit=eok|mil, isv=ifrs18|classic, acc=q|cum
+ * - 표시만 바뀌는 값(클라이언트): sj=BS|IS|CF, unit=eok|mil, isv=ifrs18|classic, acc=q|cum, vw=amt|pct
+ * pd=Q(분기·반기 보고서 재무제표)는 분기 탭의 "보고서별 재무제표" 보기에서 쓴다.
  */
 export type StatementParams = {
   fs: FsDiv;
@@ -22,6 +25,7 @@ export type StatementParams = {
   q: string | null;
   isv: IncomeView;
   acc: IncomeBasis;
+  vw: ValueView;
 };
 
 export function parseStatementParams(get: (key: string) => string | null | undefined): StatementParams {
@@ -35,6 +39,7 @@ export function parseStatementParams(get: (key: string) => string | null | undef
     q: q && parseInterimKey(q) ? q : null,
     isv: get("isv") === "classic" ? "classic" : "ifrs18",
     acc: get("acc") === "cum" ? "cum" : "q",
+    vw: get("vw") === "pct" ? "pct" : "amt",
   };
 }
 

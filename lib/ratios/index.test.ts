@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ACCOUNT_KEYS, type StandardAccounts } from "@/lib/normalize";
 import { RATIO_GUIDE } from "./guide";
-import { average, computeRatios, growthRate, RATIOS, safeDiv } from "./index";
+import { average, computeRatios, growthRate, interestBasis, RATIOS, safeDiv, totalBorrowings } from "./index";
 
 function accounts(year: number, values: Partial<StandardAccounts>): StandardAccounts {
   const empty = Object.fromEntries(ACCOUNT_KEYS.map((k) => [k, null]));
@@ -22,6 +22,15 @@ const SAMSUNG_2024 = accounts(2024, {
   currentLiabilities: 93326299000000,
   totalEquity: 402192070000000,
   equityOwners: 391687603000000,
+  costOfSales: 186562268000000,
+  cash: 53705579000000,
+  receivables: 43623073000000,
+  payables: 12370177000000,
+  shortTermBorrowings: 13172504000000,
+  currentPortionOfLongTermDebt: 2207290000000,
+  longTermBorrowings: 3935860000000,
+  bonds: 14530000000,
+  financeCosts: 12985684000000,
 });
 const SAMSUNG_2025 = accounts(2025, {
   revenue: 333605938000000,
@@ -36,6 +45,15 @@ const SAMSUNG_2025 = accounts(2025, {
   currentLiabilities: 106411348000000,
   totalEquity: 436320337000000,
   equityOwners: 424313255000000,
+  costOfSales: 202235513000000,
+  cash: 57856378000000,
+  receivables: 51127642000000,
+  payables: 13039380000000,
+  shortTermBorrowings: 17574980000000,
+  currentPortionOfLongTermDebt: 1177508000000,
+  longTermBorrowings: 6479517000000,
+  bonds: 7134000000,
+  financeCosts: 11733764000000,
 });
 
 /**
@@ -59,15 +77,28 @@ const HAND_CALCULATED_2025: Record<string, number> = {
   assetTurnover: 0.6169467229,
   equityTurnover: 0.7957090085,
   inventoryTurnover: 6.3914269117,
+  // 이자비용이 따로 없어 금융비용 대용
+  interestCoverage: 3.7158622757,
+  debtDependence: 0.0445180179,
+  receivableTurnover: 7.0417608564,
+  cashConversionCycle: 123.1081496783,
+};
+
+/** 금액 지표는 원 단위 정확값 */
+const HAND_CALCULATED_AMOUNTS_2025: Record<string, number> = {
+  netDebt: -32617239000000,
 };
 
 describe("computeRatios — 삼성전자 2025 손계산 대조", () => {
   const [y2024, y2025] = computeRatios([SAMSUNG_2025, SAMSUNG_2024]);
 
   it("모든 비율이 손계산 값과 소수 9자리까지 일치", () => {
-    expect(Object.keys(HAND_CALCULATED_2025).sort()).toEqual(RATIOS.map((r) => r.key).sort());
+    expect(Object.keys({ ...HAND_CALCULATED_2025, ...HAND_CALCULATED_AMOUNTS_2025 }).sort()).toEqual(RATIOS.map((r) => r.key).sort());
     for (const [key, expected] of Object.entries(HAND_CALCULATED_2025)) {
       expect(y2025.values[key], key).toBeCloseTo(expected, 9);
+    }
+    for (const [key, expected] of Object.entries(HAND_CALCULATED_AMOUNTS_2025)) {
+      expect(y2025.values[key], key).toBe(expected);
     }
   });
 
@@ -155,5 +186,50 @@ describe("비율별 예외 처리", () => {
     ]);
     expect(y2025.values.roa).toBeNull();
     expect(y2025.values.revenueGrowth).toBeNull();
+  });
+});
+
+describe("안정성·활동성 보강 지표", () => {
+  it("이자보상배율: 이자비용이 있으면 이자비용, 없으면 금융비용 대용(proxy 표시)", () => {
+    const withInterest = accounts(2025, { operatingIncome: 300, interestExpense: 100, financeCosts: 400 });
+    const proxyOnly = accounts(2025, { operatingIncome: 300, financeCosts: 400 });
+    expect(interestBasis(withInterest)).toEqual({ value: 100, proxy: false });
+    expect(interestBasis(proxyOnly)).toEqual({ value: 400, proxy: true });
+    expect(computeRatios([withInterest])[0].values.interestCoverage).toBe(3);
+    expect(computeRatios([proxyOnly])[0].values.interestCoverage).toBe(0.75);
+    expect(interestBasis(accounts(2025, {}))).toEqual({ value: null, proxy: false });
+  });
+
+  it("이자보상배율: 영업손실이면 음수 (1 미만 위험 신호)", () => {
+    expect(computeRatios([accounts(2025, { operatingIncome: -50, financeCosts: 100 })])[0].values.interestCoverage).toBe(-0.5);
+  });
+
+  it("차입금 합계: 찾은 계정만 더하고, 하나도 없으면 null (0으로 가정하지 않음)", () => {
+    expect(totalBorrowings(accounts(2025, { longTermBorrowings: 100, bonds: 50 }))).toBe(150);
+    expect(totalBorrowings(accounts(2025, { totalAssets: 1000 }))).toBeNull();
+    const [cur] = computeRatios([accounts(2025, { totalAssets: 1000, cash: 300 })]);
+    expect(cur.values.netDebt).toBeNull();
+    expect(cur.values.debtDependence).toBeNull();
+  });
+
+  it("순차입금: 현금이 더 많으면 음수(순현금)", () => {
+    const [cur] = computeRatios([accounts(2025, { totalAssets: 1000, shortTermBorrowings: 100, cash: 300 })]);
+    expect(cur.values.netDebt).toBe(-200);
+    expect(cur.values.debtDependence).toBeCloseTo(0.1, 12);
+  });
+
+  it("현금전환주기: 재고자산이 없는 회사는 재고 기간 0, 매출원가가 없으면 매출액 기준", () => {
+    const [, cur] = computeRatios([
+      accounts(2024, { receivables: 100, payables: 50 }),
+      accounts(2025, { revenue: 1000, receivables: 100, payables: 50 }),
+    ]);
+    // (100/1000 − 50/1000) × 365
+    expect(cur.values.cashConversionCycle).toBeCloseTo(18.25, 9);
+  });
+
+  it("현금전환주기·매출채권회전율: 전년 잔액이 없으면 null", () => {
+    const [cur] = computeRatios([accounts(2025, { revenue: 1000, receivables: 100, payables: 50 })]);
+    expect(cur.values.cashConversionCycle).toBeNull();
+    expect(cur.values.receivableTurnover).toBeNull();
   });
 });

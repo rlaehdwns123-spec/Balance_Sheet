@@ -55,6 +55,12 @@ export type CashQualityYear = {
   financingCashFlow: number | null;
   /** 영업활동현금흐름 ÷ 당기순이익 (순이익이 흑자일 때만) */
   cashConversion: number | null;
+  /** 유형자산의 취득 (양수로 맞춤) */
+  capex: number | null;
+  /** 잉여현금흐름 = 영업활동현금흐름 − 유형자산의 취득 */
+  fcf: number | null;
+  /** FCF ÷ 매출액 */
+  fcfMargin: number | null;
   pattern: CashFlowPattern | null;
 };
 
@@ -125,6 +131,12 @@ export function trailingStreak(values: (number | null)[]): { direction: "up" | "
 export function cagr(first: number | null, last: number | null, periods: number): number | null {
   if (first == null || last == null || first <= 0 || last <= 0 || periods <= 0) return null;
   return (last / first) ** (1 / periods) - 1;
+}
+
+/** 잉여현금흐름 = 영업활동현금흐름 − |유형자산의 취득| (회사마다 취득 부호가 달라 절댓값) */
+export function freeCashFlow(ocf: number | null, capex: number | null): number | null {
+  if (ocf == null || capex == null) return null;
+  return ocf - Math.abs(capex);
 }
 
 /** 영업·투자·재무 현금흐름 부호로 본 현금흐름 유형 (0은 +로 본다) */
@@ -272,15 +284,21 @@ export function analyze(
     latestYear,
     areas,
     dupont: dupont(sorted, years),
-    cash: shown.map((y) => ({
-      year: y.year,
-      netIncome: y.netIncome,
-      operatingCashFlow: y.operatingCashFlow,
-      investingCashFlow: y.investingCashFlow,
-      financingCashFlow: y.financingCashFlow,
-      cashConversion: y.operatingCashFlow != null && y.netIncome != null && y.netIncome > 0 ? y.operatingCashFlow / y.netIncome : null,
-      pattern: cashFlowPattern(y.operatingCashFlow, y.investingCashFlow, y.financingCashFlow),
-    })),
+    cash: shown.map((y) => {
+      const fcf = freeCashFlow(y.operatingCashFlow, y.capex);
+      return {
+        year: y.year,
+        netIncome: y.netIncome,
+        operatingCashFlow: y.operatingCashFlow,
+        investingCashFlow: y.investingCashFlow,
+        financingCashFlow: y.financingCashFlow,
+        cashConversion: y.operatingCashFlow != null && y.netIncome != null && y.netIncome > 0 ? y.operatingCashFlow / y.netIncome : null,
+        capex: y.capex == null ? null : Math.abs(y.capex),
+        fcf,
+        fcfMargin: safeDiv(fcf, y.revenue),
+        pattern: cashFlowPattern(y.operatingCashFlow, y.investingCashFlow, y.financingCashFlow),
+      };
+    }),
     signals: signals(sorted, ratioByYear, years),
     industry: benchmark ? industryPoints(benchmark) : null,
   };

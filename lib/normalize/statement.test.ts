@@ -283,6 +283,11 @@ describe("buildInterimTable", () => {
     ],
   };
 
+  it("공통형 기준값은 당기·비교 기간 두 열", () => {
+    expect(buildInterimTable(half, "BS").base).toEqual([150, 100]);
+    expect(buildInterimTable(half, "IS", { basis: "cum" }).base).toEqual([110, 90]);
+  });
+
   it("재무상태표는 반기말 vs 전기말", () => {
     const t = buildInterimTable(half, "BS");
     expect(t.compare).toBe(true);
@@ -309,5 +314,25 @@ describe("buildInterimTable", () => {
     const t = buildInterimTable(half, "CF");
     expect(t.columns[0].sub).toBe("누적");
     expect(t.rows[0].values).toEqual([30, 20]);
+  });
+});
+
+describe("공통형 기준값 (base)", () => {
+  it("손익계산서는 매출액, 재무상태표는 자산총계, 현금흐름표는 없음", () => {
+    const r = report(2025, [
+      row("IS", 1, "ifrs-full_Revenue", "매출액", ["200", "100"]),
+      row("IS", 2, "dart_OperatingIncomeLoss", "영업이익", ["20", "10"]),
+      row("BS", 1, "ifrs-full_CurrentAssets", "유동자산", ["40", "30"]),
+      row("BS", 2, "ifrs-full_Assets", "자산총계", ["100", "80"]),
+      row("CF", 1, "ifrs-full_CashFlowsFromUsedInOperatingActivities", "영업활동현금흐름", ["5", "4"]),
+    ]);
+    expect(buildStatementTable([r], "IS", [2025, 2024, 2023]).base).toEqual([200, 100, null]);
+    expect(buildStatementTable([r], "BS", [2025, 2024, 2023]).base).toEqual([100, 80, null]);
+    expect(buildStatementTable([r], "CF", [2025, 2024, 2023]).base).toBeNull();
+  });
+
+  it("기준 행이 없으면 null", () => {
+    const r = report(2025, [row("IS", 1, "dart_OperatingIncomeLoss", "영업이익", ["20"])]);
+    expect(buildStatementTable([r], "IS", [2025]).base).toBeNull();
   });
 });

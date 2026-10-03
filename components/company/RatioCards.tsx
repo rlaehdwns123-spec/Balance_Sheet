@@ -6,6 +6,8 @@ import { CATEGORY_LABEL, type RatioCategory, type RatioDef } from "@/lib/ratios"
 export type RatioRow = Omit<RatioDef, "compute"> & {
   meaning: string;
   guide: string;
+  /** 계산 기준 안내 (예: 금융비용 대용) */
+  note: string | null;
   /** years와 같은 순서 */
   values: (number | null)[];
   /** 첫 표시 연도의 전년 값 (증감 계산용) */
@@ -100,6 +102,11 @@ function RatioItem({ row, years, hasIndustry }: { row: RatioRow; years: number[]
         <span className="sr-only">의미와 계산식 보기</span>
       </button>
       <p className="mt-0.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">{row.meaning}</p>
+      {row.note && (
+        <p className="mt-1 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
+          {row.note}
+        </p>
+      )}
 
       <RatioPopover id={popoverId} row={row} />
 

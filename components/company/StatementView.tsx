@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Fragment } from "react";
 import Segmented from "@/components/Segmented";
-import { formatAmount, formatChange, UNIT_LABEL } from "@/lib/format";
+import { formatAmount, formatChange, formatRatio, formatRatioDelta, UNIT_LABEL } from "@/lib/format";
 import { INTERIM_NAME, QUARTER_OF, type InterimRef } from "@/lib/interim";
 import type { Section, StatementKind, StatementRow, StatementTable } from "@/lib/normalize/statement";
 import { interimKey, type IncomeBasis, type IncomeView } from "@/lib/statementParams";
@@ -53,6 +53,15 @@ const INCOME_NOTE = {
   ifrs18: "IFRS 18 양식(영업·투자·재무 범주)으로 공시된 손익계산서입니다.",
 } as const;
 
+/** 공통형 기준 */
+const BASE_LABEL: Partial<Record<StatementKind, string>> = { IS: "매출액", BS: "자산총계" };
+
+/** 공통형 비중: 기준값이 없거나 0 이하면 계산하지 않는다. 주당이익은 비중이 의미 없어 제외 */
+function shareOf(value: number | null, base: number | null | undefined, perShare: boolean): number | null {
+  if (value == null || base == null || base <= 0 || perShare) return null;
+  return value / base;
+}
+
 const CLASSIC_NOTE =
   "기존 K-IFRS 양식 순서(영업이익 → 기타수익·비용 → 금융손익 → 법인세차감전이익)로 범주 구분 없이 보여 줍니다.";
 
@@ -63,7 +72,7 @@ const TIER_CLASS: Record<StatementRow["tier"], string> = {
 };
 
 export default function StatementView({ tables, interim }: { tables: StatementTables; interim?: InterimInfo }) {
-  const { fs, sj, unit, isv, acc, replace, hrefWith } = useStatementParams();
+  const { fs, sj, unit, isv, acc, vw, replace, hrefWith } = useStatementParams();
   const router = useRouter();
   const table = sj === "IS" ? tables.IS[isv][acc] : tables[sj];
   const classic = sj === "IS" && isv === "classic";
@@ -71,6 +80,9 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
   // 1분기는 3개월 = 누적이라 기준 선택이 필요 없음
   const showBasis = sj === "IS" && !!interim && QUARTER_OF[interim.current.code] > 1;
   const { columns } = table;
+  // 공통형(비중) 보기: 손익계산서·재무상태표만, 기준 행이 있을 때
+  const pct = vw === "pct" && sj !== "CF";
+  const base = pct ? table.base : null;
   const colCount = columns.length + (table.compare ? 1 : 0);
 
   return (
@@ -120,10 +132,10 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
       )}
 
       <p className="mb-2 text-xs text-neutral-600 dark:text-neutral-400">
-        단위: {UNIT_LABEL[unit]} · {fs === "CFS" ? "연결" : "별도"} ·{" "}
+        {pct ? `${BASE_LABEL[sj]} 대비 비중(%)` : `단위: ${UNIT_LABEL[unit]}`} · {fs === "CFS" ? "연결" : "별도"} ·{" "}
         {interim ? `${interimLabel(interim.current)}보고서 기준 · 전년 동기 대비` : "사업보고서 기준"}
         {sj === "IS" && table.source === "CIS" && " · 포괄손익계산서"}
-        {table.rows.some((r) => r.perShare) && " · 주당이익은 원"}
+        {!pct && table.rows.some((r) => r.perShare) && " · 주당이익은 원"}
       </p>
 
       {/* 범주 색 범례 (색만으로 구분하지 않도록 표 안에도 범주 머리행·라벨이 있다) */}
@@ -174,7 +186,7 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
                     scope="col"
                     className="fs-cell min-w-[5rem] border-b border-neutral-300 px-3 py-2 text-right font-medium last:pr-4 dark:border-neutral-700"
                   >
-                    증감률
+                    {pct ? "증감" : "증감률"}
                   </th>
                 )}
               </tr>
@@ -195,7 +207,7 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
                         {row.label}
                       </th>
                       {row.values.map((v, i) => {
-                        const { text, negative } = formatAmount(v, unit, row.perShare);
+                        const { text, negative } = pct ? shareCell(shareOf(v, base?.[i], row.perShare)) : formatAmount(v, unit, row.perShare);
                         return (
                           <td
                             key={columns[i].key}
@@ -207,7 +219,15 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
                           </td>
                         );
                       })}
-                      {table.compare && <ChangeCell row={row} turnaround={sj === "IS"} />}
+                      {table.compare &&
+                        (pct ? (
+                          <ShareDeltaCell
+                            current={shareOf(row.values[0], base?.[0], row.perShare)}
+                            prior={shareOf(row.values[1], base?.[1], row.perShare)}
+                          />
+                        ) : (
+                          <ChangeCell row={row} turnaround={sj === "IS"} />
+                        ))}
                     </tr>
                   </Fragment>
                 );
@@ -217,6 +237,13 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
         </div>
       )}
 
+      {pct && table.rows.length > 0 && (
+        <p className="mt-3 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+          {base
+            ? `공통형 재무제표: 각 항목을 같은 기간 ${BASE_LABEL[sj]}으로 나눈 비중입니다. 규모가 다른 회사·연도의 구조를 비교할 때 씁니다.`
+            : `${BASE_LABEL[sj]} 행을 찾지 못해 비중을 계산할 수 없습니다.`}
+        </p>
+      )}
       {sj === "IS" && table.rows.length > 0 && (
         <p className="mt-3 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
           {classic ? CLASSIC_NOTE : INCOME_NOTE[table.format]}
@@ -230,6 +257,22 @@ export default function StatementView({ tables, interim }: { tables: StatementTa
         </p>
       )}
     </div>
+  );
+}
+
+const shareCell = (v: number | null) =>
+  v == null ? { text: "–", negative: false } : { text: formatRatio(v, "percent"), negative: v < 0 };
+
+/** 공통형 보기의 비교 기간 대비 비중 증감 (%p) */
+function ShareDeltaCell({ current, prior }: { current: number | null; prior: number | null }) {
+  const d = formatRatioDelta(current != null && prior != null ? current - prior : null, "percent");
+  const direction = !d ? "none" : d.direction;
+  return (
+    <td
+      className={`fs-cell border-b border-neutral-100 px-3 py-2 text-right text-xs whitespace-nowrap last:pr-4 dark:border-neutral-900 ${CHANGE_CLASS[direction]}`}
+    >
+      {!d ? "–" : d.direction === "flat" ? "0.0%p" : `${d.direction === "up" ? "+" : "−"}${d.text}`}
+    </td>
   );
 }
 

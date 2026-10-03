@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import FinancialComboChart from "@/components/charts/FinancialComboChart";
 import RatioTrendChart, { type RatioSeries } from "@/components/charts/RatioTrendChart";
 import DartErrorView from "@/components/company/DartErrorView";
-import FsToggle from "@/components/company/FsToggle";
+import RatioSubNav from "@/components/company/RatioSubNav";
 import { ChartSkeleton } from "@/components/company/Skeletons";
 import { getRecentAnnualReports } from "@/lib/dart/client";
 import { isDartError } from "@/lib/dart/errors";
@@ -25,7 +25,7 @@ export default async function ChartsPage({ params, searchParams }: Props) {
 
   return (
     <div className="space-y-4">
-      <FsToggle />
+      <RatioSubNav corpCode={corp_code} />
       <Suspense key={fs} fallback={<ChartSkeleton />}>
         <Charts corpCode={corp_code} fs={fs} />
       </Suspense>
@@ -49,7 +49,8 @@ async function Charts({ corpCode, fs }: { corpCode: string; fs: FsDiv }) {
       netIncome: y.netIncome,
       operatingMargin: ratios[i]?.values.operatingMargin ?? null,
     }));
-    const series: RatioSeries[] = RATIOS.map((r) => ({
+    // 한 카테고리는 축 하나를 쓰므로 %·회 지표만 (이자보상배율·순차입금·현금전환주기는 비율 화면에서)
+    const series: RatioSeries[] = RATIOS.filter((r) => r.unit === "percent" || r.unit === "times").map((r) => ({
       key: r.key,
       label: r.label,
       category: r.category,
@@ -74,7 +75,7 @@ async function Charts({ corpCode, fs }: { corpCode: string; fs: FsDiv }) {
           <figcaption className="mb-3">
             <h2 className="font-semibold">재무비율 추이</h2>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              카테고리 안에서 최대 3개 지표 · {basis} · 정확한 값은 재무비율 탭
+              카테고리 안에서 최대 3개 지표 · {basis} · 정확한 값은 비율 화면
             </p>
           </figcaption>
           <RatioTrendChart years={years} series={series} />

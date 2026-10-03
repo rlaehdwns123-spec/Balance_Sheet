@@ -18,7 +18,8 @@ import ChartTooltip from "./ChartTooltip";
 import { useChartTheme } from "./theme";
 
 export type ComboPoint = {
-  year: number;
+  /** x축 라벨 (연도 또는 "25.3Q" 같은 분기) */
+  year: number | string;
   revenue: number | null;
   operatingIncome: number | null;
   netIncome: number | null;
@@ -77,7 +78,7 @@ export default function FinancialComboChart({ data }: { data: ComboPoint[] }) {
           content={({ active, payload, label }) =>
             active && payload?.length ? (
               <ChartTooltip
-                title={`${label}년`}
+                title={/^\d{4}$/.test(String(label)) ? `${label}년` : String(label)}
                 items={[
                   ...BARS.map((b) => {
                     const v = payload[0].payload[b.key] as number | null;

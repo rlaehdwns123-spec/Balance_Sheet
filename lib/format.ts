@@ -22,10 +22,27 @@ export function formatAmount(
   return scaled < 0 ? { text: `(${text})`, negative: true } : { text, negative: false };
 }
 
-/** 재무비율 값: percent는 소수(0.131) → "13.1%", times는 "0.62회" */
-export function formatRatio(value: number | null, unit: "percent" | "times"): string {
+/** 지표 단위: 비율(%) / 회전(회) / 배수(배) / 일수(일) / 금액(원) */
+export type MetricUnit = "percent" | "times" | "multiple" | "days" | "won";
+
+/**
+ * 지표 값: percent는 소수(0.131) → "13.1%", times는 "0.62회", multiple은 "3.40배", days는 "45일",
+ * won은 "1.2조"·"3,400억" 같은 짧은 금액
+ */
+export function formatRatio(value: number | null, unit: MetricUnit): string {
   if (value === null) return "–";
-  return unit === "percent" ? `${fixed(value * 100, 1)}%` : `${fixed(value, 2)}회`;
+  switch (unit) {
+    case "percent":
+      return `${fixed(value * 100, 1)}%`;
+    case "times":
+      return `${fixed(value, 2)}회`;
+    case "multiple":
+      return `${fixed(value, 2)}배`;
+    case "days":
+      return `${fixed(value, 0)}일`;
+    case "won":
+      return formatWonCompact(value, 1e11);
+  }
 }
 
 /**
@@ -34,12 +51,18 @@ export function formatRatio(value: number | null, unit: "percent" | "times"): st
  */
 export function formatRatioDelta(
   delta: number | null,
-  unit: "percent" | "times",
+  unit: MetricUnit,
 ): { direction: "up" | "down" | "flat"; text: string } | null {
   if (delta === null) return null;
-  const shown = unit === "percent" ? fixed(Math.abs(delta) * 100, 1) : fixed(Math.abs(delta), 2);
-  if (Number(shown.replace(/,/g, "")) === 0) return { direction: "flat", text: "0" };
-  return { direction: delta > 0 ? "up" : "down", text: unit === "percent" ? `${shown}%p` : `${shown}회` };
+  const abs = Math.abs(delta);
+  const text =
+    unit === "percent"
+      ? `${fixed(abs * 100, 1)}%p`
+      : unit === "won"
+        ? formatWonCompact(abs, 1e11)
+        : formatRatio(abs, unit);
+  if (/^0(\.0+)?\D*$/.test(text.replace(/,/g, ""))) return { direction: "flat", text: "0" };
+  return { direction: delta > 0 ? "up" : "down", text };
 }
 
 /**

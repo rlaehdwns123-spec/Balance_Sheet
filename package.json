@@ -15,6 +15,7 @@
     "build:industries": "tsx scripts/build-industries.ts"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "fflate": "^0.8.3",
     "next": "^15.5.26",
     "react": "^19.3.0",

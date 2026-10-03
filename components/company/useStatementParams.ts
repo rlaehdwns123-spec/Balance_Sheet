@@ -5,13 +5,13 @@ import { useCallback } from "react";
 import { parseStatementParams, type StatementParams } from "@/lib/statementParams";
 
 /** 표시만 바뀌어 서버 요청 없이 URL만 고치는 값 */
-type ViewParams = Pick<StatementParams, "sj" | "unit" | "isv" | "acc">;
+type ViewParams = Pick<StatementParams, "sj" | "unit" | "isv" | "acc" | "vw">;
 /** null이면 쿼리에서 뺀다 */
 type Patch = { [K in keyof StatementParams]?: StatementParams[K] | null };
 
 /**
  * 재무제표 화면 상태를 URL 쿼리로 관리.
- * sj·unit·isv·acc는 표시만 바뀌므로 replaceState로 서버 요청 없이 바꾸고,
+ * sj·unit·isv·acc·vw는 표시만 바뀌므로 replaceState로 서버 요청 없이 바꾸고,
  * fs·pd·q는 데이터가 달라지므로 hrefWith로 만든 링크로 이동한다.
  */
 export function useStatementParams() {

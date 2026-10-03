@@ -1,4 +1,6 @@
 import Link from "next/link";
+import WatchStar from "@/components/WatchStar";
+import ExportButton from "./ExportButton";
 import type { DartCompany } from "@/lib/dart/types";
 import { industryName } from "@/lib/ksic";
 
@@ -12,7 +14,10 @@ export default function CompanyHeader({ company }: { company: DartCompany }) {
     <section className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-bold">{name}</h1>
+          <div className="flex min-w-0 items-center gap-1">
+            <h1 className="truncate text-xl font-bold">{name}</h1>
+            <WatchStar corpCode={company.corp_code} name={name} stockCode={company.stock_code} />
+          </div>
           {company.corp_name !== name && (
             <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{company.corp_name}</p>
           )}
@@ -40,12 +45,15 @@ export default function CompanyHeader({ company }: { company: DartCompany }) {
         </div>
       </dl>
 
-      <Link
-        href={`/compare?corps=${company.corp_code}`}
-        className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
-      >
-        다른 회사와 비교 →
-      </Link>
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-2">
+        <Link
+          href={`/compare?corps=${company.corp_code}`}
+          className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+        >
+          다른 회사와 비교 →
+        </Link>
+        <ExportButton corpCode={company.corp_code} />
+      </div>
     </section>
   );
 }
